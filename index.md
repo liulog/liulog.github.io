@@ -32,3 +32,20 @@ title: 首页
         <p>待补充项目经历与开源贡献。</p>
     </div>
 </div>
+
+<div class="card-grid mt-xl">
+    <div class="card">
+        <h3 class="section-title">📚 项目可视化 / Visualizations</h3>
+        <ul class="skill-list">
+            <li class="skill-item">
+                🎬 <a href="/riscv-sv39-pagetable-bringup.html">RISC-V Sv39 页表构建步进播放器</a>
+                <small>（互动 HTML，鼠标/键盘步进）</small>
+            </li>
+            <li class="skill-item">
+                📖 <a href="/riscv-sv39-pagetable-bringup-doc.html">RISC-V Sv39 页表构建文档</a>
+                <small>（Linux 6.18 源码逐步梳理）</small>
+            </li>
+        </ul>
+        <p><small>🤖 上述内容由 Minimax3 生成。</small></p>
+    </div>
+</div>
