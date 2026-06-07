@@ -45,6 +45,10 @@ title: 首页
                 📖 <a href="/riscv-sv39-pagetable-bringup-doc.html">RISC-V Sv39 页表构建文档</a>
                 <small>（Linux 6.18 源码逐步梳理）</small>
             </li>
+            <li class="skill-item">
+                📖 <a href="/riscv-satp-sfence-semantics.html">RISC-V satp 与 sfence.vma 语义详解</a>
+                <small>（Bare↔分页瞬间、TLB stale、sfence 时机）</small>
+            </li>
         </ul>
         <p><small>🤖 上述内容由 Minimax3 生成。</small></p>
     </div>
