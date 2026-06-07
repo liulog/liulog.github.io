@@ -3,10 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page.title }}</title>
+    <title>{{ page.title }} - liu.log</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    {{ content }}
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <span class="logo-text">liu.log</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/" class="nav-link">首页</a>
+                <a href="/about.html" class="nav-link">关于</a>
+                <a href="/contact.html" class="nav-link">联系</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="site-main">
+        <div class="content-wrapper">
+            {{ content }}
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <p class="footer-text">© 2026 liu.log · 用心记录每一天</p>
+            <div class="footer-links">
+                <a href="https://github.com" target="_blank" class="footer-link">GitHub</a>
+                <span class="footer-divider">·</span>
+                <a href="mailto:hello@example.com" class="footer-link">Email</a>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
