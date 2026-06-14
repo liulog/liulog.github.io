@@ -163,6 +163,9 @@
         <marker id="arr3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill="#d2a8ff" opacity="0.7"/>
         </marker>
+        <marker id="arr4" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L6,3 z" fill="#ffa657" opacity="0.8"/>
+        </marker>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)"/>
 
@@ -621,6 +624,29 @@
         <path d="M 128 208 Q 128 185 128 150" stroke="#d2a8ff" stroke-width="1" fill="none" stroke-dasharray="3,2" marker-end="url(#arr3)" opacity="0.5"/>
       </g>
 
+      <!-- ══ HWPTW reads PTE through data-cache hierarchy ══ -->
+      <g opacity="0.8">
+        <path d="M 218 180 C 224 180, 224 356, 214 356" stroke="#ffa657" stroke-width="1" fill="none" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
+        <path d="M 214 356 C 224 356, 224 405, 214 405" stroke="#ffa657" stroke-width="1" fill="none" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
+        <path d="M 214 405 C 224 425, 224 485, 214 505" stroke="#ffa657" stroke-width="1" fill="none" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
+      </g>
+
+      <g transform="translate(760, 520)">
+        <rect width="165" height="100" rx="5" fill="#2a1d12" stroke="#ffa657" stroke-width="1"/>
+        <text x="82.5" y="18" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="600">TLB miss 后的 Page Walker</text>
+        <line x1="0" y1="26" x2="165" y2="26" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="43" fill="#8b949e" font-size="9">PTE 也是普通内存数据</text>
+        <text x="10" y="57" fill="#8b949e" font-size="9">优先走数据侧缓存层级</text>
+        <path d="M 12 71 H 48" stroke="#f97583" stroke-width="1.2" marker-end="url(#arr4)"/>
+        <text x="53" y="74" fill="#f97583" font-size="9">L1 D$</text>
+        <path d="M 85 71 H 117" stroke="#56d4dd" stroke-width="1.2" marker-end="url(#arr4)"/>
+        <text x="122" y="74" fill="#56d4dd" font-size="9">L2</text>
+        <path d="M 12 86 H 48" stroke="#ffd33d" stroke-width="1.2" marker-end="url(#arr4)"/>
+        <text x="53" y="89" fill="#ffd33d" font-size="9">L3 / LLC</text>
+        <path d="M 105 86 H 138" stroke="#7ee787" stroke-width="1.2" marker-end="url(#arr4)"/>
+        <text x="143" y="89" fill="#7ee787" font-size="9">DRAM</text>
+      </g>
+
       <!-- ══ L1→L2→L3 annotation ══ -->
       <g opacity="0.6">
         <path d="M 130 382 Q 130 386 130 390" stroke="#f97583" stroke-width="1" fill="none" marker-end="url(#arr)" opacity="0.6"/>
@@ -689,7 +715,7 @@
         <p style="color:var(--text-dim); font-size:11px;">
           <b style="color:#f97583">TLB 所有层级均为 per-core 私有</b>，核间不共享（一致性代价太高）。<br>
           L1 TLB 太小（全关联低延迟），L2 TLB 更大（set-assoc 容纳更多条目）。<br>
-          L1 miss → 查 L2 TLB → L2 miss → HWPTW 遍历页表 → 填充 TLB。
+          L1 miss → 查 L2 TLB → L2 miss → HWPTW 读取页表项；这些 PTE 会像普通数据一样命中 L1 D/L2/L3，再回填 TLB。
         </p>
       </div>
 
@@ -736,12 +762,21 @@
         <div class="flow-box">
           <div class="step"><span class="num">①</span>VA 到达，先查 <span class="hi">L1 ITLB</span> / <span class="hi">L1 DTLB</span></div>
           <div class="step"><span class="num">②</span>命中 → 直接返回 <span class="hi">PA + 属性</span></div>
-          <div class="step"><span class="num">③</span><span style="color:#ffa657">L1 miss</span> → 查 <span class="hi">L2 TLB</span>（共享）</div>
+          <div class="step"><span class="num">③</span><span style="color:#ffa657">L1 miss</span> → 查 <span class="hi">L2 TLB</span>（核内统一）</div>
           <div class="step"><span class="num">④</span>命中 → 填充 L1，返回 PA</div>
-          <div class="step"><span class="num">⑤</span><span style="color:#ffa657">L2 miss</span> → MMU 硬件页表行走</div>
-          <div class="step"><span class="num">⑥</span>遍历 PTE → 填充 L2 → L1 → 返回 PA</div>
-          <div class="step"><span class="num">⑦</span>RISC-V: <span class="hi">sfence.vma</span> / ARM: <span class="hi">TLBI</span> 刷对应条目</div>
+          <div class="step"><span class="num">⑤</span><span style="color:#ffa657">L2 miss</span> → MMU 硬件页表行走，发起 PTE 内存读取</div>
+          <div class="step"><span class="num">⑥</span>PTE 可命中 <span class="hi">L1 D-Cache</span> / <span class="hi">L2</span> / <span class="hi">L3</span>，否则到 DRAM</div>
+          <div class="step"><span class="num">⑦</span>得到翻译结果 → 填充 L2 → L1 → 返回 PA</div>
+          <div class="step"><span class="num">⑧</span>RISC-V: <span class="hi">sfence.vma</span> / ARM: <span class="hi">TLBI</span> 刷对应条目</div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Page Walker 走哪一级 Cache？</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          不是固定“只从 L2 开始”。<b style="color:var(--text)">TLB miss 后，硬件页表行走器读取的 PTE 本质上是普通内存数据</b>，通常优先走数据侧缓存路径：<b style="color:var(--l1)">L1 D-Cache</b> → <b style="color:var(--l2)">L2</b> → <b style="color:var(--l3)">L3/LLC</b> → <b style="color:var(--mem)">DRAM</b>。<br>
+          命中哪一级取决于页表 cache line 是否已驻留；部分高端微架构还会有 page-walk cache / paging-structure cache，图里先按通用可见路径表达。
+        </p>
       </div>
 
       <div class="card">
@@ -749,6 +784,7 @@
         <p style="color:var(--text-dim); font-size:11px;">
           <b style="color:var(--text)">TLB</b> = 虚拟地址→物理地址（VA→PA），条目是页表项（PTE），按页对齐。<br>
           <b style="color:var(--text)">Cache</b> = 物理地址→数据（PA→Data），条目是 cache line（64B），按块对齐。<br>
+          <b style="color:var(--text)">Page Walker</b> 读的是页表项，因此它走的是 <b style="color:var(--l1)">数据侧 Cache</b> 层级，而不是 I-Cache。<br>
           访问顺序：CPU → <b style="color:var(--mmu)">TLB</b> → PA → <b style="color:var(--l1)">L1 Cache</b> → L2 → L3 → DRAM
         </p>
       </div>
@@ -762,6 +798,14 @@
         <p style="color:var(--text-dim); font-size:11px;">
           L1 最小最 快（独立 I/D，贴近核）→ L2 中等 → L3/LLC 最大最慢（所有核共享）。<br>
           通过 <b style="color:var(--text)">包容性 (Inclusive)</b> 或 <b style="color:var(--text)">排斥性 (Exclusive)</b> 策略管理各层关系。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">页表为什么也会命中 Cache？</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          页表本身存放在普通物理内存中，PTE 也是普通 cache line 的一部分。<br>
+          所以 <b style="color:var(--text)">TLB miss 不等于直接访问 DRAM</b>；若页表热点常驻，HWPTW 很可能先在 <b style="color:var(--l1)">L1 D</b>、<b style="color:var(--l2)">L2</b> 或 <b style="color:var(--l3)">L3</b> 命中。
         </p>
       </div>
 
@@ -809,13 +853,13 @@
           <div class="step"><span class="num">①</span>CPU 生成 <span class="hi">虚拟地址 (VA)</span></div>
           <div class="step"><span class="num">②</span>MMU 查 <span class="hi">L1 ITLB / DTLB</span></div>
           <div class="step"><span class="num">③</span><span style="color:#ffa657">TLB miss</span> → 查 L2 TLB</div>
-          <div class="step"><span class="num">④</span><span style="color:#ffa657">L2 miss</span> → HWPTW 遍历页表 PTE</div>
-          <div class="step"><span class="num">⑤</span>得到 <span class="hi">物理地址 (PA)</span></div>
-          <div class="step"><span class="num">⑥</span>用 PA 查 <span class="hi">L1 D-Cache</span></div>
-          <div class="step"><span class="num">⑦</span><span style="color:#ffa657">L1 miss</span> → 查 L2 Cache</div>
-          <div class="step"><span class="num">⑧</span><span style="color:#ffa657">L2 miss</span> → 查 L3 / DRAM</div>
-          <div class="step"><span class="num">⑨</span>数据返回，填充各层 Cache</div>
-          <div class="step"><span class="num">⑩</span>TLB + Cache 一致性维护</div>
+          <div class="step"><span class="num">④</span><span style="color:#ffa657">L2 miss</span> → HWPTW 读取页表 PTE</div>
+          <div class="step"><span class="num">⑤</span>PTE 先查 <span class="hi">L1 D-Cache</span>，再落到 <span class="hi">L2 / L3 / DRAM</span></div>
+          <div class="step"><span class="num">⑥</span>得到 <span class="hi">物理地址 (PA)</span>，并回填 L2/L1 TLB</div>
+          <div class="step"><span class="num">⑦</span>用 PA 查 <span class="hi">L1 D-Cache</span></div>
+          <div class="step"><span class="num">⑧</span><span style="color:#ffa657">L1 miss</span> → 查 L2 Cache</div>
+          <div class="step"><span class="num">⑨</span><span style="color:#ffa657">L2 miss</span> → 查 L3 / DRAM</div>
+          <div class="step"><span class="num">⑩</span>数据返回，填充各层 Cache，维护 TLB + Cache 一致性</div>
         </div>
       </div>
 
