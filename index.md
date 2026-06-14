@@ -49,6 +49,10 @@ title: 首页
                 📖 <a href="/riscv-satp-sfence-semantics.html">RISC-V satp 与 sfence.vma 语义详解</a>
                 <small>（Bare↔分页瞬间、TLB stale、sfence 时机）</small>
             </li>
+            <li class="skill-item">
+                🖥 <a href="/smp-multicore-arch.html">SMP 多核处理器架构可视化</a>
+                <small>（4-Core TLB + Cache 层次结构，RISC-V / ARM 对比）</small>
+            </li>
         </ul>
         <p><small>🤖 上述内容由 Minimax3 生成。</small></p>
     </div>
