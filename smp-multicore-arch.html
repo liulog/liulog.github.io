@@ -11,10 +11,8 @@
     --border:   #2d3640;
     --text:     #e6e9ec;
     --text-dim: #8b949e;
-    --core0:    #7ee787;
-    --core1:    #79c0ff;
-    --core2:    #ffa657;
-    --core3:    #d2a8ff;
+    --arm:      #79c0ff;
+    --riscv:    #7ee787;
     --l1:       #f97583;
     --l2:       #56d4dd;
     --l3:       #ffd33d;
@@ -28,7 +26,7 @@
   html, body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, "PingFang SC", "Segoe UI", "Microsoft Yahei", sans-serif;
+    font-family: -apple-system, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
     font-size: 14px;
     line-height: 1.6;
     height: 100%;
@@ -38,613 +36,796 @@
 
   /* ── Header ── */
   header {
-    padding: 12px 20px;
+    padding: 10px 20px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 16px;
     flex-shrink: 0;
   }
-  header h1 { font-size: 16px; font-weight: 600; color: var(--accent); }
-  header h1 .sub { color: var(--text-dim); font-weight: 400; margin-left: 8px; }
-  .legend { margin-left: auto; display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-dim); }
-  .legend span { display: flex; align-items: center; gap: 5px; }
-  .legend .dot { width: 10px; height: 10px; border-radius: 50%; }
-
-  /* ── Main layout ── */
-  main {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 340px;
-    overflow: hidden;
+  header h1 { font-size: 15px; font-weight: 600; color: var(--accent); }
+  header h1 .sub { color: var(--text-dim); font-weight: 400; margin-left: 8px; font-size: 13px; }
+  .arch-toggle { margin-left: auto; display: flex; gap: 6px; }
+  .arch-toggle button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 5px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
   }
+  .arch-toggle button.active { background: var(--info); color: var(--bg); border-color: var(--info); }
+  .arch-toggle button:hover:not(.active) { border-color: var(--info); color: var(--text); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text-dim); }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; }
 
-  /* ── SVG Canvas ── */
-  .canvas {
-    overflow: auto;
-    padding: 16px;
-    background: var(--bg);
-  }
+  /* ── Main ── */
+  main { flex: 1; display: flex; overflow: hidden; }
+  .canvas { flex: 1; overflow: auto; padding: 12px; background: var(--bg); }
   .canvas svg { display: block; min-width: 900px; }
 
-  /* ── Sidebar ── */
   aside {
+    width: 320px;
     background: var(--panel);
     border-left: 1px solid var(--border);
     overflow-y: auto;
-    padding: 16px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+    flex-shrink: 0;
   }
-  aside h2 { font-size: 14px; color: var(--info); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 8px; }
-  aside h3 { font-size: 13px; color: var(--text); margin: 8px 0 4px; }
 
+  /* ── Sidebar cards ── */
+  h2 { font-size: 13px; color: var(--info); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 8px; }
+  h3 { font-size: 12px; color: var(--text); margin: 8px 0 4px; }
   .card {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    font-size: 12px;
+    border-radius: 5px;
+    padding: 9px 11px;
+    font-size: 11px;
     line-height: 1.7;
   }
-  .card .card-title {
-    font-size: 12px; font-weight: 600; color: var(--accent);
-    margin-bottom: 6px;
-  }
-  .card .tag {
-    display: inline-block;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    margin: 2px 2px 2px 0;
-  }
-  .tag-core0 { background: #7ee78733; color: var(--core0); border: 1px solid #7ee78755; }
-  .tag-core1 { background: #79c0ff33; color: var(--core1); border: 1px solid #79c0ff55; }
-  .tag-core2 { background: #ffa65733; color: var(--core2); border: 1px solid #ffa65755; }
-  .tag-core3 { background: #d2a8ff33; color: var(--core3); border: 1px solid #d2a8ff55; }
-  .tag-l1    { background: #f9758333; color: var(--l1);    border: 1px solid #f9758355; }
-  .tag-l2    { background: #56d4dd33; color: var(--l2);    border: 1px solid #56d4dd55; }
-  .tag-l3    { background: #ffd33d33; color: var(--l3);    border: 1px solid #ffd33d55; }
-  .tag-mmu   { background: #d2a8ff33; color: var(--mmu);   border: 1px solid #d2a8ff55; }
-  .tag-noc   { background: #56d4dd33; color: var(--noc);   border: 1px solid #56d4dd55; }
-  .tag-mem   { background: #7ee78733; color: var(--mem);   border: 1px solid #7ee78755; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 5px; }
+  .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; margin: 2px 2px 2px 0; }
+  .tag-arm { background: #79c0ff22; color: var(--arm); border: 1px solid #79c0ff44; }
+  .tag-riscv { background: #7ee78722; color: var(--riscv); border: 1px solid #7ee78744; }
+  .tag-l1 { background: #f9758322; color: var(--l1); border: 1px solid #f9758344; }
+  .tag-l2 { background: #56d4dd22; color: var(--l2); border: 1px solid #56d4dd44; }
+  .tag-l3 { background: #ffd33d22; color: var(--l3); border: 1px solid #ffd33d44; }
+  .tag-mmu { background: #d2a8ff22; color: var(--mmu); border: 1px solid #d2a8ff44; }
 
-  .flow-box {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 8px 10px;
-    margin-top: 8px;
-    font-family: monospace;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.8;
-  }
-  .flow-box .step { padding: 2px 0; }
-  .flow-box .step .num { color: var(--info); margin-right: 6px; }
-  .flow-box .step .highlight { color: var(--accent); }
-
-  .proc-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .proc-table th { color: var(--text-dim); text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
-  .proc-table td { padding: 4px 6px; border-bottom: 1px solid #2d364055; }
+  .proc-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+  .proc-table th { color: var(--text-dim); text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border); }
+  .proc-table td { padding: 3px 6px; border-bottom: 1px solid #2d364033; color: var(--text-dim); }
   .proc-table tr:hover td { background: #232c3666; }
+  .proc-table td:first-child { color: var(--text); }
 
-  .note { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+  .note { font-size: 10px; color: var(--text-dim); margin-top: 5px; }
 
-  /* highlight active element */
-  .hl-core0 { --hl-color: var(--core0); }
-  .hl-core1 { --hl-color: var(--core1); }
-  .hl-core2 { --hl-color: var(--core2); }
-  .hl-core3 { --hl-color: var(--core3); }
-  .hl-l1    { --hl-color: var(--l1); }
-  .hl-l2    { --hl-color: var(--l2); }
-  .hl-l3    { --hl-color: var(--l3); }
-  .hl-mmu   { --hl-color: var(--mmu); }
-  .hl-noc   { --hl-color: var(--noc); }
-  .hl-mem   { --hl-color: var(--mem); }
-
-  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
-  .tab { padding: 6px 12px; font-size: 12px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; }
+  .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .tab { padding: 5px 10px; font-size: 11px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .tab:hover { color: var(--text); }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
-  #arch-svg .component { cursor: pointer; transition: filter 0.2s; }
-  #arch-svg .component:hover { filter: brightness(1.3); }
+  /* flow steps */
+  .flow-box { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 7px 9px; margin-top: 6px; font-family: monospace; font-size: 10px; color: var(--text-dim); line-height: 1.9; }
+  .flow-box .step { padding: 1px 0; }
+  .flow-box .num { color: var(--info); margin-right: 5px; }
+  .flow-box .hi { color: var(--accent); }
+
+  /* ── SVG ── */
+  #arch-svg .component { transition: filter 0.2s; cursor: pointer; }
+  #arch-svg .component:hover { filter: brightness(1.35); }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>🖥 SMP 多核处理器架构可视化 <span class="sub">RISC-V 4-Core 示例 · ARM Cortex-A 参考</span></h1>
+  <h1>🖥 SMP 多核处理器架构可视化 <span class="sub">多级 TLB + 多级 Cache</span></h1>
+  <div class="arch-toggle">
+    <button class="active" id="btn-riscv" onclick="showArch('riscv')">RISC-V</button>
+    <button id="btn-arm" onclick="showArch('arm')">ARM</button>
+  </div>
   <div class="legend">
-    <span><span class="dot" style="background:var(--core0)"></span>Core 0</span>
-    <span><span class="dot" style="background:var(--core1)"></span>Core 1</span>
-    <span><span class="dot" style="background:var(--core2)"></span>Core 2</span>
-    <span><span class="dot" style="background:var(--core3)"></span>Core 3</span>
+    <span><span class="dot" style="background:var(--riscv)"></span>RISC-V</span>
+    <span><span class="dot" style="background:var(--arm)"></span>ARM</span>
+    <span><span class="dot" style="background:var(--mmu)"></span>MMU</span>
+    <span><span class="dot" style="background:var(--l1)"></span>L1 TLB</span>
+    <span><span class="dot" style="background:var(--l2)"></span>L2 TLB</span>
     <span><span class="dot" style="background:var(--l1)"></span>L1 Cache</span>
     <span><span class="dot" style="background:var(--l2)"></span>L2 Cache</span>
-    <span><span class="dot" style="background:var(--l3)"></span>L3 / Shared Cache</span>
-    <span><span class="dot" style="background:var(--mmu)"></span>MMU</span>
-    <span><span class="dot" style="background:var(--noc)"></span>NoC / Interconnect</span>
-    <span><span class="dot" style="background:var(--mem)"></span>Memory Controller</span>
+    <span><span class="dot" style="background:var(--l3)"></span>L3 Cache</span>
+    <span><span class="dot" style="background:var(--noc)"></span>NoC</span>
+    <span><span class="dot" style="background:var(--mem)"></span>DRAM</span>
   </div>
 </header>
 
 <main>
-  <!-- ═══════════════════════════════════════════════ SVG Diagram ══ -->
   <div class="canvas">
-    <svg id="arch-svg" viewBox="0 0 920 780" xmlns="http://www.w3.org/2000/svg">
+    <svg id="arch-svg" viewBox="0 0 940 820" xmlns="http://www.w3.org/2000/svg">
 
-      <!-- ══ Background grid ══ -->
       <defs>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2128" stroke-width="0.5"/>
         </pattern>
-        <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill="#56d4dd" opacity="0.7"/>
         </marker>
-        <marker id="arrow2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <marker id="arr2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill="#7ee787" opacity="0.7"/>
         </marker>
-        <marker id="arrow3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <marker id="arr3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <path d="M0,0 L0,6 L6,3 z" fill="#d2a8ff" opacity="0.7"/>
         </marker>
-        <marker id="arrow4" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="#f97583" opacity="0.7"/>
-        </marker>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="2" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)"/>
 
-      <!-- ══════════════════════════════════════════════
-           LAYER 1: DRAM
-      ══════════════════════════════════════════════════ -->
-      <rect x="280" y="710" width="360" height="55" rx="6" fill="#0d2a1a" stroke="#7ee787" stroke-width="1.5" opacity="0.9"/>
-      <text x="460" y="730" text-anchor="middle" fill="#7ee787" font-size="12" font-weight="600">DRAM</text>
-      <text x="460" y="746" text-anchor="middle" fill="#8b949e" font-size="10">DDR4/DDR5 · 物理地址空间</text>
-      <text x="460" y="759" text-anchor="middle" fill="#56d4dd" font-size="10">内存控制器 · 64-bit / 128-bit 带宽</text>
-
-      <!-- ══════════════════════════════════════════════
-           LAYER 2: L3 Cache (Shared / Last Level)
-      ════════════════════════════════════════════════ -->
-      <rect x="200" y="580" width="520" height="115" rx="8" fill="#1a2a1a" stroke="#ffd33d" stroke-width="1.5"/>
-      <text x="460" y="600" text-anchor="middle" fill="#ffd33d" font-size="12" font-weight="600">L3 Cache · Last-Level Cache (LLC)</text>
-      <text x="460" y="615" text-anchor="middle" fill="#8b949e" font-size="10">所有 Core 共享 · 16–32 MB · MESI / MOESI 协议</text>
-
-      <!-- L3 cache banks -->
-      <rect x="220" y="628" width="120" height="52" rx="5" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
-      <text x="280" y="648" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 0</text>
-      <text x="280" y="663" text-anchor="middle" fill="#8b949e" font-size="9">8 MB</text>
-      <rect x="355" y="628" width="120" height="52" rx="5" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
-      <text x="415" y="648" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 1</text>
-      <text x="415" y="663" text-anchor="middle" fill="#8b949e" font-size="9">8 MB</text>
-      <rect x="490" y="628" width="120" height="52" rx="5" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
-      <text x="550" y="648" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 2</text>
-      <text x="550" y="663" text-anchor="middle" fill="#8b949e" font-size="9">8 MB</text>
-      <rect x="625" y="628" width="75" height="52" rx="5" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
-      <text x="662" y="648" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 3</text>
-      <text x="662" y="663" text-anchor="middle" fill="#8b949e" font-size="9">8 MB</text>
-
-      <!-- ══════════════════════════════════════════════
-           LAYER 3: Interconnect (NoC / Crossbar)
-      ════════════════════════════════════════════════ -->
-      <rect x="200" y="465" width="520" height="100" rx="8" fill="#0d1f2d" stroke="#56d4dd" stroke-width="1.5"/>
-      <text x="460" y="485" text-anchor="middle" fill="#56d4dd" font-size="12" font-weight="600">NoC Crossbar / Interconnect</text>
-      <text x="460" y="500" text-anchor="middle" fill="#8b949e" font-size="10">CMN-600 (ARM) · SiFive NoC · 128-bit AXI 协议</text>
-
-      <!-- Draw 4 ports -->
-      <line x1="260" y1="530" x2="260" y2="628" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
-      <line x1="380" y1="530" x2="415" y2="628" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
-      <line x1="500" y1="530" x2="550" y2="628" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
-      <line x1="620" y1="530" x2="662" y2="628" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
-
-      <!-- DRAM link -->
-      <line x1="460" y1="565" x2="460" y2="710" stroke="#7ee787" stroke-width="1.5" marker-end="url(#arrow2)" opacity="0.6"/>
-      <text x="475" y="640" fill="#7ee787" font-size="9">DDR</text>
-      <text x="475" y="651" fill="#7ee787" font-size="9">通道</text>
-
-      <!-- ══════════════════════════════════════════════
-           LAYER 4: Per-Core Subsystems (×4)
-      ════════════════════════════════════════════════ -->
-
-      <!-- ── Core 0 ── y=60 -->
-      <g id="core0-group">
-        <!-- Core box -->
-        <rect x="50" y="70" width="190" height="380" rx="8" fill="#0d2218" stroke="#7ee787" stroke-width="1.5"/>
-        <rect x="50" y="70" width="190" height="24" rx="8" fill="#7ee787"/>
-        <rect x="50" y="86" width="190" height="8" fill="#7ee787"/>
-        <text x="145" y="87" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 0 · hart-0</text>
-
-        <!-- Pipeline -->
-        <rect x="62" y="100" width="166" height="55" rx="4" fill="#14291a" stroke="#7ee787" stroke-width="1"/>
-        <text x="145" y="115" text-anchor="middle" fill="#7ee787" font-size="10" font-weight="600">流水线 Pipeline</text>
-        <text x="145" y="130" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → Writeback</text>
-        <text x="145" y="144" text-anchor="middle" fill="#8b949e" font-size="9">分支预测 · 乱序执行 · 4-way</text>
-
-        <!-- MMU -->
-        <rect x="62" y="162" width="166" height="70" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
-        <text x="145" y="177" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
-        <text x="145" y="191" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
-        <text x="145" y="204" text-anchor="middle" fill="#8b949e" font-size="9">satp (RISC-V) / TTBR0/1 (ARM)</text>
-        <text x="145" y="217" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
-
-        <!-- ITLB -->
-        <rect x="62" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="101" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">ITLB</text>
-        <text x="101" y="269" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
-        <text x="101" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
-
-        <!-- DTLB -->
-        <rect x="150" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="189" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">DTLB</text>
-        <text x="189" y="269" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
-        <text x="189" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
-
-        <!-- L1 I-Cache -->
-        <rect x="62" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="101" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
-        <text x="101" y="329" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
-        <text x="101" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
-        <text x="101" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
-
-        <!-- L1 D-Cache -->
-        <rect x="150" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="189" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
-        <text x="189" y="329" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
-        <text x="189" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
-        <text x="189" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
-
-        <!-- L2 Cache -->
-        <rect x="62" y="366" width="166" height="55" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
-        <text x="145" y="381" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
-        <text x="145" y="395" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
-        <text x="145" y="409" text-anchor="middle" fill="#8b949e" font-size="8">256–512 KB · 8-way · VIPT</text>
-
-        <!-- Core label -->
-        <text x="145" y="435" text-anchor="middle" fill="#7ee787" font-size="9">RISC-V hart / ARM Cortex-A</text>
-
-        <!-- Connection to NoC -->
-        <path d="M 145 445 Q 145 450 145 465" stroke="#7ee787" stroke-width="1.5" fill="none" marker-end="url(#arrow2)" opacity="0.7"/>
+      <!-- ══ Title ══ -->
+      <g id="title-riscv">
+        <rect x="330" y="12" width="280" height="36" rx="6" fill="#0d2218" stroke="#7ee787" stroke-width="1"/>
+        <text x="470" y="28" text-anchor="middle" fill="#7ee787" font-size="12" font-weight="700">RISC-V 4-Core SMP · 多级 TLB + Cache</text>
+        <text x="470" y="42" text-anchor="middle" fill="#8b949e" font-size="10">参考：SiFive U740 / Andes NDS · satp + sfence.vma</text>
+      </g>
+      <g id="title-arm" style="display:none">
+        <rect x="330" y="12" width="280" height="36" rx="6" fill="#0d1a22" stroke="#79c0ff" stroke-width="1"/>
+        <text x="470" y="28" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="700">ARM Cortex-A 4-Core SMP · 多级 TLB + Cache</text>
+        <text x="470" y="42" text-anchor="middle" fill="#8b949e" font-size="10">参考：Cortex-A72 / A78 · TTBR0/1 + TLBI</text>
       </g>
 
-      <!-- ── Core 1 ── -->
-      <g id="core1-group">
-        <rect x="260" y="70" width="190" height="380" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
-        <rect x="260" y="70" width="190" height="24" rx="8" fill="#79c0ff"/>
-        <rect x="260" y="86" width="190" height="8" fill="#79c0ff"/>
-        <text x="355" y="87" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 1 · hart-1</text>
+      <!-- ══ DRAM ══ -->
+      <rect x="300" y="750" width="340" height="55" rx="6" fill="#0d2a1a" stroke="#7ee787" stroke-width="1.5" opacity="0.9"/>
+      <text x="470" y="770" text-anchor="middle" fill="#7ee787" font-size="12" font-weight="600">DRAM</text>
+      <text x="470" y="786" text-anchor="middle" fill="#8b949e" font-size="10">DDR4/DDR5 · 物理地址空间</text>
 
-        <rect x="272" y="100" width="166" height="55" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
-        <text x="355" y="115" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
-        <text x="355" y="130" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → Writeback</text>
-        <text x="355" y="144" text-anchor="middle" fill="#8b949e" font-size="9">分支预测 · 乱序执行 · 4-way</text>
+      <!-- ══ L3 Cache ══ -->
+      <rect x="200" y="630" width="540" height="105" rx="8" fill="#1a2a1a" stroke="#ffd33d" stroke-width="1.5"/>
+      <text x="470" y="650" text-anchor="middle" fill="#ffd33d" font-size="12" font-weight="600">L3 Cache · Last-Level Cache (LLC) · 所有核共享</text>
+      <text x="470" y="665" text-anchor="middle" fill="#8b949e" font-size="10">16–32 MB · Banked · MESI / MOESI / CHI 一致性协议</text>
+      <rect x="220" y="678" width="120" height="44" rx="4" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="280" y="695" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 0 · 8 MB</text>
+      <rect x="355" y="678" width="120" height="44" rx="4" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="415" y="695" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 1 · 8 MB</text>
+      <rect x="490" y="678" width="120" height="44" rx="4" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="550" y="695" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 2 · 8 MB</text>
+      <rect x="625" y="678" width="95" height="44" rx="4" fill="#1f3214" stroke="#ffd33d" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="672" y="695" text-anchor="middle" fill="#ffd33d" font-size="11">Bank 3</text>
 
-        <rect x="272" y="162" width="166" height="70" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
-        <text x="355" y="177" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
-        <text x="355" y="191" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
-        <text x="355" y="204" text-anchor="middle" fill="#8b949e" font-size="9">satp (RISC-V) / TTBR0/1 (ARM)</text>
-        <text x="355" y="217" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
+      <!-- ══ NoC / Interconnect ══ -->
+      <rect x="200" y="520" width="540" height="95" rx="8" fill="#0d1f2d" stroke="#56d4dd" stroke-width="1.5"/>
+      <text x="470" y="540" text-anchor="middle" fill="#56d4dd" font-size="12" font-weight="600">NoC Crossbar / Interconnect</text>
+      <text x="470" y="555" text-anchor="middle" fill="#8b949e" font-size="10">SiFive NoC (RISC-V) · CMN-600 (ARM) · AMBA AXI/ACE 协议</text>
+      <line x1="280" y1="590" x2="280" y2="678" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+      <line x1="415" y1="590" x2="415" y2="678" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+      <line x1="550" y1="590" x2="550" y2="678" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+      <line x1="672" y1="590" x2="672" y2="678" stroke="#56d4dd" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+      <line x1="470" y1="615" x2="470" y2="750" stroke="#7ee787" stroke-width="1.5" marker-end="url(#arr2)" opacity="0.5"/>
+      <text x="482" y="680" fill="#7ee787" font-size="9">DDR</text>
 
-        <rect x="272" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="311" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">ITLB</text>
-        <text x="311" y="269" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
-        <text x="311" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
+      <!-- ══════════════════════════════════════════
+           RISC-V Core diagram (1 core)
+           Each core: Pipeline → MMU → L1 ITLB / DTLB → L2 TLB
+                        → L1 I/D Cache → L2 Cache → NoC
+      ══════════════════════════════════════════ -->
+      <g id="rv-core" class="core-diagram">
 
-        <rect x="360" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="399" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">DTLB</text>
-        <text x="399" y="269" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
-        <text x="399" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
+        <!-- Core 0 -->
+        <g id="rv-core0">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d2218" stroke="#7ee787" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#7ee787"/>
+          <rect x="30" y="79" width="200" height="8" fill="#7ee787"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 0 · hart-0</text>
 
-        <rect x="272" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="311" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
-        <text x="311" y="329" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
-        <text x="311" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
-        <text x="311" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <!-- Pipeline -->
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#14291a" stroke="#7ee787" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#7ee787" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行</text>
 
-        <rect x="360" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="399" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
-        <text x="399" y="329" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
-        <text x="399" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
-        <text x="399" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <!-- MMU -->
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">satp 寄存器 · Sv39/Sv48</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
 
-        <rect x="272" y="366" width="166" height="55" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
-        <text x="355" y="381" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
-        <text x="355" y="395" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
-        <text x="355" y="409" text-anchor="middle" fill="#8b949e" font-size="8">256–512 KB · 8-way · VIPT</text>
+          <!-- L1 ITLB -->
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
 
-        <text x="355" y="435" text-anchor="middle" fill="#79c0ff" font-size="9">RISC-V hart / ARM Cortex-A</text>
-        <path d="M 355 445 Q 355 450 355 465" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arrow2)" opacity="0.7"/>
+          <!-- L1 DTLB -->
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+
+          <!-- L2 TLB (shared, below ITLB/DTLB) -->
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">指令+数据统一 · miss handler 出口</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">U740: 共享 512 项 · 4-way set assoc</text>
+
+          <!-- L1 I-Cache -->
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+
+          <!-- L1 D-Cache -->
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+
+          <!-- L2 Cache -->
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">U740: 2 MB · 8-way · VIPT</text>
+
+          <text x="130" y="452" text-anchor="middle" fill="#7ee787" font-size="9">SiFive U740 / Andes AN660</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#7ee787" stroke-width="1.5" fill="none" marker-end="url(#arr2)" opacity="0.6"/>
+        </g>
+
+        <!-- Core 1 -->
+        <g id="rv-core1" transform="translate(235,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#79c0ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#79c0ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 1 · hart-1</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">satp 寄存器 · Sv39/Sv48</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">指令+数据统一 · miss handler 出口</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">U740: 共享 512 项 · 4-way set assoc</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">U740: 2 MB · 8-way · VIPT</text>
+          <text x="130" y="452" text-anchor="middle" fill="#79c0ff" font-size="9">SiFive U740 / Andes AN660</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arr2)" opacity="0.6"/>
+        </g>
+
+        <!-- Core 2 -->
+        <g id="rv-core2" transform="translate(470,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#221a0d" stroke="#ffa657" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#ffa657"/>
+          <rect x="30" y="79" width="200" height="8" fill="#ffa657"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 2 · hart-2</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#2a2514" stroke="#ffa657" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">satp 寄存器 · Sv39/Sv48</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">指令+数据统一 · miss handler 出口</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">U740: 共享 512 项 · 4-way set assoc</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">U740: 2 MB · 8-way · VIPT</text>
+          <text x="130" y="452" text-anchor="middle" fill="#ffa657" font-size="9">SiFive U740 / Andes AN660</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#ffa657" stroke-width="1.5" fill="none" marker-end="url(#arr2)" opacity="0.6"/>
+        </g>
+
+        <!-- Core 3 -->
+        <g id="rv-core3" transform="translate(705,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#d2a8ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#d2a8ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 3 · hart-3</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#211a2a" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">satp 寄存器 · Sv39/Sv48</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">48 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">指令+数据统一 · miss handler 出口</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">U740: 共享 512 项 · 4-way set assoc</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">U740: 2 MB · 8-way · VIPT</text>
+          <text x="130" y="452" text-anchor="middle" fill="#d2a8ff" font-size="9">SiFive U740 / Andes AN660</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#d2a8ff" stroke-width="1.5" fill="none" marker-end="url(#arr2)" opacity="0.6"/>
+        </g>
       </g>
 
-      <!-- ── Core 2 ── -->
-      <g id="core2-group">
-        <rect x="470" y="70" width="190" height="380" rx="8" fill="#221a0d" stroke="#ffa657" stroke-width="1.5"/>
-        <rect x="470" y="70" width="190" height="24" rx="8" fill="#ffa657"/>
-        <rect x="470" y="86" width="190" height="8" fill="#ffa657"/>
-        <text x="565" y="87" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 2 · hart-2</text>
+      <!-- ══════════════════════════════════════════
+           ARM Core diagram
+      ══════════════════════════════════════════ -->
+      <g id="arm-core" class="core-diagram" style="display:none">
 
-        <rect x="482" y="100" width="166" height="55" rx="4" fill="#2a2514" stroke="#ffa657" stroke-width="1"/>
-        <text x="565" y="115" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="600">流水线 Pipeline</text>
-        <text x="565" y="130" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → Writeback</text>
-        <text x="565" y="144" text-anchor="middle" fill="#8b949e" font-size="9">分支预测 · 乱序执行 · 4-way</text>
+        <!-- ARM Core 0 -->
+        <g id="arm-core0">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#79c0ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#79c0ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 0</text>
 
-        <rect x="482" y="162" width="166" height="70" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
-        <text x="565" y="177" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
-        <text x="565" y="191" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
-        <text x="565" y="204" text-anchor="middle" fill="#8b949e" font-size="9">satp (RISC-V) / TTBR0/1 (ARM)</text>
-        <text x="565" y="217" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行 · 3-way</text>
 
-        <rect x="482" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="521" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">ITLB</text>
-        <text x="521" y="269" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
-        <text x="521" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查 · ASID</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">TTBR0_EL1 / TTBR1_EL1 · TCR_EL1</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">Stage-1 翻译 (VMSAv8-39/48)</text>
 
-        <rect x="570" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="609" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">DTLB</text>
-        <text x="609" y="269" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
-        <text x="609" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
+          <!-- L1 ITLB -->
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
 
-        <rect x="482" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="521" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
-        <text x="521" y="329" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
-        <text x="521" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
-        <text x="521" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <!-- L1 DTLB -->
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
 
-        <rect x="570" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="609" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
-        <text x="609" y="329" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
-        <text x="609" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
-        <text x="609" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <!-- L2 TLB -->
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">A72: 1024 项 · 4-way set assoc</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">A15: 256 项 · unified miss handler</text>
 
-        <rect x="482" y="366" width="166" height="55" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
-        <text x="565" y="381" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
-        <text x="565" y="395" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
-        <text x="565" y="409" text-anchor="middle" fill="#8b949e" font-size="8">256–512 KB · 8-way · VIPT</text>
+          <!-- L1 I-Cache -->
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
 
-        <text x="565" y="435" text-anchor="middle" fill="#ffa657" font-size="9">RISC-V hart / ARM Cortex-A</text>
-        <path d="M 565 445 Q 565 450 565 465" stroke="#ffa657" stroke-width="1.5" fill="none" marker-end="url(#arrow2)" opacity="0.7"/>
+          <!-- L1 D-Cache -->
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+
+          <!-- L2 Cache -->
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">A72: 512 KB · 16-way</text>
+
+          <text x="130" y="452" text-anchor="middle" fill="#79c0ff" font-size="9">ARM Cortex-A72 / A78</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arr)" opacity="0.6"/>
+        </g>
+
+        <!-- ARM Core 1 -->
+        <g id="arm-core1" transform="translate(235,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#79c0ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#79c0ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 1</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行 · 3-way</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查 · ASID</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">TTBR0_EL1 / TTBR1_EL1 · TCR_EL1</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">Stage-1 翻译 (VMSAv8-39/48)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">A72: 1024 项 · 4-way set assoc</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">A15: 256 项 · unified miss handler</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">A72: 512 KB · 16-way</text>
+          <text x="130" y="452" text-anchor="middle" fill="#79c0ff" font-size="9">ARM Cortex-A72 / A78</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arr)" opacity="0.6"/>
+        </g>
+
+        <!-- ARM Core 2 -->
+        <g id="arm-core2" transform="translate(470,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#79c0ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#79c0ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 2</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行 · 3-way</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查 · ASID</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">TTBR0_EL1 / TTBR1_EL1 · TCR_EL1</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">Stage-1 翻译 (VMSAv8-39/48)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">A72: 1024 项 · 4-way set assoc</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">A15: 256 项 · unified miss handler</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">A72: 512 KB · 16-way</text>
+          <text x="130" y="452" text-anchor="middle" fill="#79c0ff" font-size="9">ARM Cortex-A72 / A78</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arr)" opacity="0.6"/>
+        </g>
+
+        <!-- ARM Core 3 -->
+        <g id="arm-core3" transform="translate(705,0)">
+          <rect x="30" y="65" width="200" height="440" rx="8" fill="#0d1a22" stroke="#79c0ff" stroke-width="1.5"/>
+          <rect x="30" y="65" width="200" height="22" rx="8" fill="#79c0ff"/>
+          <rect x="30" y="79" width="200" height="8" fill="#79c0ff"/>
+          <text x="130" y="80" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 3</text>
+          <rect x="42" y="96" width="176" height="48" rx="4" fill="#141f2a" stroke="#79c0ff" stroke-width="1"/>
+          <text x="130" y="110" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">流水线 Pipeline</text>
+          <text x="130" y="124" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → WB</text>
+          <text x="130" y="136" text-anchor="middle" fill="#8b949e" font-size="8">分支预测 · 乱序执行 · 3-way</text>
+          <rect x="42" y="150" width="176" height="60" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
+          <text x="130" y="178" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查 · ASID</text>
+          <text x="130" y="191" text-anchor="middle" fill="#8b949e" font-size="8">TTBR0_EL1 / TTBR1_EL1 · TCR_EL1</text>
+          <text x="130" y="203" text-anchor="middle" fill="#56d4dd" font-size="8">Stage-1 翻译 (VMSAv8-39/48)</text>
+          <rect x="42" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="83" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 ITLB</text>
+          <text x="83" y="246" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
+          <text x="83" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="132" y="218" width="82" height="48" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
+          <text x="173" y="232" text-anchor="middle" fill="#d2a8ff" font-size="10">L1 DTLB</text>
+          <text x="173" y="246" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
+          <text x="173" y="258" text-anchor="middle" fill="#ffd33d" font-size="8">40 项 · 全关联</text>
+          <rect x="42" y="274" width="172" height="48" rx="4" fill="#141f2a" stroke="#56d4dd" stroke-width="1.5"/>
+          <text x="128" y="288" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">L2 TLB (Shared)</text>
+          <text x="128" y="302" text-anchor="middle" fill="#8b949e" font-size="9">A72: 1024 项 · 4-way set assoc</text>
+          <text x="128" y="314" text-anchor="middle" fill="#8b949e" font-size="8">A15: 256 项 · unified miss handler</text>
+          <rect x="42" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="83" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
+          <text x="83" y="358" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
+          <text x="83" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
+          <text x="83" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
+          <rect x="132" y="330" width="82" height="52" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
+          <text x="173" y="344" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
+          <text x="173" y="358" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
+          <text x="173" y="372" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
+          <text x="173" y="382" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
+          <rect x="42" y="390" width="172" height="50" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
+          <text x="128" y="405" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
+          <text x="128" y="419" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
+          <text x="128" y="432" text-anchor="middle" fill="#8b949e" font-size="8">A72: 512 KB · 16-way</text>
+          <text x="130" y="452" text-anchor="middle" fill="#79c0ff" font-size="9">ARM Cortex-A72 / A78</text>
+          <path d="M 130 460 Q 130 490 130 520" stroke="#79c0ff" stroke-width="1.5" fill="none" marker-end="url(#arr)" opacity="0.6"/>
+        </g>
       </g>
 
-      <!-- ── Core 3 ── -->
-      <g id="core3-group">
-        <rect x="680" y="70" width="190" height="380" rx="8" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
-        <rect x="680" y="70" width="190" height="24" rx="8" fill="#d2a8ff"/>
-        <rect x="680" y="86" width="190" height="8" fill="#d2a8ff"/>
-        <text x="775" y="87" text-anchor="middle" fill="#0f1419" font-size="11" font-weight="700">Core 3 · hart-3</text>
-
-        <rect x="692" y="100" width="166" height="55" rx="4" fill="#211a2a" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="775" y="115" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">流水线 Pipeline</text>
-        <text x="775" y="130" text-anchor="middle" fill="#8b949e" font-size="9">Fetch → Decode → Execute → Writeback</text>
-        <text x="775" y="144" text-anchor="middle" fill="#8b949e" font-size="9">分支预测 · 乱序执行 · 4-way</text>
-
-        <rect x="692" y="162" width="166" height="70" rx="4" fill="#1a1429" stroke="#d2a8ff" stroke-width="1.5"/>
-        <text x="775" y="177" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">MMU</text>
-        <text x="775" y="191" text-anchor="middle" fill="#8b949e" font-size="9">地址翻译 · 权限检查</text>
-        <text x="775" y="204" text-anchor="middle" fill="#8b949e" font-size="9">satp (RISC-V) / TTBR0/1 (ARM)</text>
-        <text x="775" y="217" text-anchor="middle" fill="#56d4dd" font-size="8">硬件页表行走器 (HWPTW)</text>
-
-        <rect x="692" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="731" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">ITLB</text>
-        <text x="731" y="269" text-anchor="middle" fill="#8b949e" font-size="9">指令 TLB</text>
-        <text x="731" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
-
-        <rect x="780" y="240" width="78" height="52" rx="4" fill="#1f1429" stroke="#d2a8ff" stroke-width="1"/>
-        <text x="819" y="255" text-anchor="middle" fill="#d2a8ff" font-size="10">DTLB</text>
-        <text x="819" y="269" text-anchor="middle" fill="#8b949e" font-size="9">数据 TLB</text>
-        <text x="819" y="281" text-anchor="middle" fill="#8b949e" font-size="8">32 项 · 4-way</text>
-
-        <rect x="692" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="731" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 I-Cache</text>
-        <text x="731" y="329" text-anchor="middle" fill="#8b949e" font-size="9">指令缓存</text>
-        <text x="731" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32–48 KB · 64B line</text>
-        <text x="731" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · VIPT</text>
-
-        <rect x="780" y="300" width="78" height="58" rx="4" fill="#2a1219" stroke="#f97583" stroke-width="1"/>
-        <text x="819" y="315" text-anchor="middle" fill="#f97583" font-size="10">L1 D-Cache</text>
-        <text x="819" y="329" text-anchor="middle" fill="#8b949e" font-size="9">数据缓存</text>
-        <text x="819" y="343" text-anchor="middle" fill="#8b949e" font-size="8">32 KB · 64B line</text>
-        <text x="819" y="354" text-anchor="middle" fill="#56d4dd" font-size="7">4-way · PIPT</text>
-
-        <rect x="692" y="366" width="166" height="55" rx="4" fill="#121f2a" stroke="#56d4dd" stroke-width="1"/>
-        <text x="775" y="381" text-anchor="middle" fill="#56d4dd" font-size="10">L2 Cache</text>
-        <text x="775" y="395" text-anchor="middle" fill="#8b949e" font-size="9">私有 L2 · 指令+数据统一</text>
-        <text x="775" y="409" text-anchor="middle" fill="#8b949e" font-size="8">256–512 KB · 8-way · VIPT</text>
-
-        <text x="775" y="435" text-anchor="middle" fill="#d2a8ff" font-size="9">RISC-V hart / ARM Cortex-A</text>
-        <path d="M 775 445 Q 775 450 775 465" stroke="#d2a8ff" stroke-width="1.5" fill="none" marker-end="url(#arrow2)" opacity="0.7"/>
+      <!-- ══ TLB miss → page table walk flow arrow ══ -->
+      <g opacity="0.65">
+        <path d="M 72 266 Q 72 230 130 230 Q 188 230 188 210" stroke="#d2a8ff" stroke-width="1" fill="none" stroke-dasharray="4,3" marker-end="url(#arr3)"/>
+        <text x="192" y="228" fill="#d2a8ff" font-size="9">TLB miss</text>
+        <text x="192" y="239" fill="#d2a8ff" font-size="9">→ 页表行走</text>
+        <path d="M 128 208 Q 128 185 128 150" stroke="#d2a8ff" stroke-width="1" fill="none" stroke-dasharray="3,2" marker-end="url(#arr3)" opacity="0.5"/>
       </g>
 
-      <!-- ══════════════════════════════════════════════
-           Flow annotation arrows (between layers)
-      ════════════════════════════════════════════════ -->
-
-      <!-- TLB lookup path annotation -->
+      <!-- ══ L1→L2→L3 annotation ══ -->
       <g opacity="0.6">
-        <path d="M 90 240 Q 90 200 145 200 Q 200 200 200 162" stroke="#d2a8ff" stroke-width="1" fill="none" stroke-dasharray="4,3" marker-end="url(#arrow3)"/>
-        <text x="205" y="200" fill="#d2a8ff" font-size="9">TLB miss</text>
-        <text x="205" y="211" fill="#d2a8ff" font-size="9">→ 页表行走</text>
+        <path d="M 130 382 Q 130 386 130 390" stroke="#f97583" stroke-width="1" fill="none" marker-end="url(#arr)" opacity="0.6"/>
+        <text x="134" y="387" fill="#f97583" font-size="8">L1 miss</text>
+        <path d="M 130 440 Q 130 480 130 520" stroke="#56d4dd" stroke-width="1" fill="none" stroke-dasharray="3,2" marker-end="url(#arr)" opacity="0.6"/>
+        <text x="134" y="480" fill="#56d4dd" font-size="8">L2 miss</text>
       </g>
 
-      <!-- L1 → L2 annotation -->
-      <g opacity="0.6">
-        <path d="M 145 358 Q 145 360 145 366" stroke="#f97583" stroke-width="1" fill="none" stroke-dasharray="3,2" marker-end="url(#arrow4)"/>
-        <text x="148" y="362" fill="#f97583" font-size="8">L1 miss</text>
+      <!-- ══ MESI / Registers annotation boxes ══ -->
+      <g transform="translate(15, 640)">
+        <rect width="155" height="130" rx="5" fill="#0d1f2d" stroke="#56d4dd" stroke-width="1"/>
+        <text x="77" y="18" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">缓存一致性协议</text>
+        <line x1="0" y1="26" x2="155" y2="26" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="42" fill="#8b949e" font-size="9">Modified — 本核已修改</text>
+        <text x="10" y="56" fill="#8b949e" font-size="9">Exclusive — 独占此行</text>
+        <text x="10" y="70" fill="#8b949e" font-size="9">Shared — 多核共享干净</text>
+        <text x="10" y="84" fill="#8b949e" font-size="9">Invalid — 无效/未缓存</text>
+        <line x1="0" y1="93" x2="155" y2="93" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="108" fill="#8b949e" font-size="9">Snooping / Directory</text>
+        <text x="10" y="122" fill="#8b949e" font-size="9">总线监听 or 本地目录</text>
       </g>
 
-      <!-- L2 → L3 annotation -->
-      <g opacity="0.6">
-        <path d="M 145 421 Q 145 440 145 465" stroke="#56d4dd" stroke-width="1" fill="none" stroke-dasharray="3,2" marker-end="url(#arrow)"/>
-        <text x="148" y="445" fill="#56d4dd" font-size="8">L2 miss</text>
+      <g id="rv-reg-box" transform="translate(770, 640)">
+        <rect width="155" height="130" rx="5" fill="#0d2218" stroke="#7ee787" stroke-width="1"/>
+        <text x="77" y="18" text-anchor="middle" fill="#7ee787" font-size="10" font-weight="600">RISC-V 关键寄存器</text>
+        <line x1="0" y1="26" x2="155" y2="26" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="42" fill="#8b949e" font-size="9">satp — 地址翻译根寄存器</text>
+        <text x="10" y="56" fill="#8b949e" font-size="9">sfence.vma — TLB 失效指令</text>
+        <text x="10" y="70" fill="#8b949e" font-size="9">sstatus.MXR — 允许取可执行</text>
+        <text x="10" y="84" fill="#8b949e" font-size="9">sstatus.SUM — 用户页访问</text>
+        <line x1="0" y1="93" x2="155" y2="93" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="108" fill="#8b949e" font-size="9">ASID — 地址空间标识符</text>
+        <text x="10" y="122" fill="#8b949e" font-size="9">MODE=Sv39 / Sv48</text>
       </g>
 
-      <!-- ══════════════════════════════════════════════
-           Coherency annotation box (bottom left)
-      ════════════════════════════════════════════════ -->
-      <g transform="translate(20, 580)">
-        <rect width="165" height="150" rx="6" fill="#0d1f2d" stroke="#56d4dd" stroke-width="1"/>
-        <text x="82" y="20" text-anchor="middle" fill="#56d4dd" font-size="10" font-weight="600">缓存一致性协议</text>
-        <text x="10" y="40" fill="#8b949e" font-size="9">MESI / MOESI / CHI</text>
-        <line x1="0" y1="50" x2="165" y2="50" stroke="#2d3640" stroke-width="1"/>
-        <text x="10" y="67" fill="#8b949e" font-size="9">Modified — 本核已修改</text>
-        <text x="10" y="81" fill="#8b949e" font-size="9">Exclusive — 独占此行</text>
-        <text x="10" y="95" fill="#8b949e" font-size="9">Shared — 多核共享干净</text>
-        <text x="10" y="109" fill="#8b949e" font-size="9">Invalid — 无效/未缓存</text>
-        <line x1="0" y1="118" x2="165" y2="118" stroke="#2d3640" stroke-width="1"/>
-        <text x="10" y="134" fill="#8b949e" font-size="9">Snooping / Directory</text>
-        <text x="10" y="147" fill="#8b949e" font-size="9">总线监听 or 本地目录</text>
-      </g>
-
-      <!-- ══════════════════════════════════════════════
-           RISC-V / ARM reference annotation (bottom right)
-      ════════════════════════════════════════════════ -->
-      <g transform="translate(735, 580)">
-        <rect width="165" height="150" rx="6" fill="#0d2218" stroke="#7ee787" stroke-width="1"/>
-        <text x="82" y="20" text-anchor="middle" fill="#7ee787" font-size="10" font-weight="600">相关寄存器 (RISC-V)</text>
-        <line x1="0" y1="28" x2="165" y2="28" stroke="#2d3640" stroke-width="1"/>
-        <text x="10" y="44" fill="#8b949e" font-size="9">satp — 地址翻译根寄存器</text>
-        <text x="10" y="58" fill="#8b949e" font-size="9">sfence.vma — TLB 失效指令</text>
-        <text x="10" y="72" fill="#8b949e" font-size="9">sstatus.MXR — 允许取可执行</text>
-        <text x="10" y="86" fill="#8b949e" font-size="9">sstatus.SUM — 用户页访问</text>
-        <line x1="0" y1="94" x2="165" y2="94" stroke="#2d3640" stroke-width="1"/>
-        <text x="10" y="110" fill="#8b949e" font-size="9">ASID — 地址空间标识符</text>
-        <text x="10" y="124" fill="#8b949e" font-size="9">G — 全局位 (不刷 ASID)</text>
-        <text x="10" y="138" fill="#8b949e" font-size="9">VSATPN · HLVTBL · HLVTBS</text>
-      </g>
-
-      <!-- ══════════════════════════════════════════════
-           Title annotation — top center
-      ════════════════════════════════════════════════ -->
-      <g transform="translate(350, 18)">
-        <rect width="220" height="40" rx="6" fill="#1a2128" stroke="#2d3640" stroke-width="1"/>
-        <text x="110" y="17" text-anchor="middle" fill="#7ee787" font-size="11" font-weight="600">4-Core SMP 处理器子系统</text>
-        <text x="110" y="32" text-anchor="middle" fill="#8b949e" font-size="9">每核独立 MMU + ITLB/DTLB + L1 I/D + L2</text>
+      <g id="arm-reg-box" transform="translate(770, 640)" style="display:none">
+        <rect width="155" height="130" rx="5" fill="#0d1a22" stroke="#79c0ff" stroke-width="1"/>
+        <text x="77" y="18" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="600">ARM 关键寄存器</text>
+        <line x1="0" y1="26" x2="155" y2="26" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="42" fill="#8b949e" font-size="9">TTBR0_EL1 — 用户空间基址</text>
+        <text x="10" y="56" fill="#8b949e" font-size="9">TTBR1_EL1 — 内核空间基址</text>
+        <text x="10" y="70" fill="#8b949e" font-size="9">TCR_EL1 — T0SZ/T1SZ</text>
+        <text x="10" y="84" fill="#8b949e" font-size="9">TLBI VMALLIS — 全局 TLB 失效</text>
+        <line x1="0" y1="93" x2="155" y2="93" stroke="#2d3640" stroke-width="1"/>
+        <text x="10" y="108" fill="#8b949e" font-size="9">ASID — 地址空间标识符</text>
+        <text x="10" y="122" fill="#8b949e" font-size="9">VMSAv8-39 / VMSAv8-48</text>
       </g>
 
     </svg>
   </div>
 
-  <!-- ═══════════════════════════════════════════════ Sidebar ══ -->
+  <!-- ══ Sidebar ══ -->
   <aside>
     <div class="tab-bar">
-      <div class="tab active" onclick="switchTab(this,'overview')">总览</div>
-      <div class="tab" onclick="switchTab(this,'flow')">地址翻译流程</div>
-      <div class="tab" onclick="switchTab(this,'ref')">参考资料</div>
+      <div class="tab active" onclick="switchTab(this,'tlb')">多级 TLB</div>
+      <div class="tab" onclick="switchTab(this,'cache')">Cache 层级</div>
+      <div class="tab" onclick="switchTab(this,'flow')">翻译流程</div>
+      <div class="tab" onclick="switchTab(this,'ref')">参考</div>
     </div>
 
-    <!-- Overview tab -->
-    <div id="tab-overview" class="tab-content active">
-      <h2>📐 架构层级</h2>
+    <!-- TLB tab -->
+    <div id="tab-tlb" class="tab-content active">
+      <h2>🔍 多级 TLB 结构</h2>
       <div class="card">
-        <div class="card-title">层级结构总览</div>
-        <p>典型的现代多核 SMP 处理器（如 ARM Cortex-A72 / A78 / RISC-V SiFive Freedom U740）按以下层次组织：</p>
-        <br>
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="tag tag-core0">Core 0</span>
-            <span class="tag tag-core1">Core 1</span>
-            <span class="tag tag-core2">Core 2</span>
-            <span class="tag tag-core3">Core 3</span>
-            <span style="color:var(--text-dim); font-size:11px;">— 4核 SMP</span>
+        <div class="card-title">为什么需要多级 TLB？</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          L1 TLB 太小（全关联以保证低延迟），L2 TLB 更大（set-assoc 以容纳更多条目）。<br>
+          L1 miss → 查 L2 TLB → L2 miss → 软件/硬件页表行走 (HWPTW) → 填充 TLB。
+        </p>
+      </div>
+
+      <h3>RISC-V — SiFive U740</h3>
+      <div class="card">
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-mmu">L1 ITLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">48 项 · 全关联 · 指令</span>
           </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
-            <span class="tag tag-l1">L1 (私有)</span>
-            <span class="tag tag-l2">L2 (私有)</span>
-            <span class="tag tag-l3">L3 (共享)</span>
-            <span class="tag tag-mmu">MMU</span>
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-mmu">L1 DTLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">48 项 · 全关联 · 数据</span>
           </div>
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-l2">L2 TLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">512 项 · 4-way set assoc · I+D 统一</span>
+          </div>
+          <p style="color:var(--text-dim); font-size:10px; margin-top:4px;">Andes AN6603: 三级 TLB，128 + 128 + 512 项</p>
         </div>
       </div>
 
-      <h3>各层组件</h3>
+      <h3>ARM — Cortex-A72</h3>
       <div class="card">
-        <div class="card-title">🔹 Core / Hart 内部</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:12px;">
-          <li>• <b style="color:var(--text)">流水线</b> — Fetch / Decode / Execute / Writeback</li>
-          <li>• <b style="color:var(--text)">MMU</b> — 虚拟地址→物理地址翻译</li>
-          <li>• <b style="color:var(--text)">ITLB</b> — 指令 TLB，常见 32–48 项</li>
-          <li>• <b style="color:var(--text)">DTLB</b> — 数据 TLB，常见 32–48 项</li>
-          <li>• <b style="color:var(--text)">L1 I-Cache</b> — 指令缓存，32–48 KB</li>
-          <li>• <b style="color:var:var(--l1)">L1 D-Cache</b> — 数据缓存，32 KB</li>
-          <li>• <b style="color:var(--text)">L2 Cache</b> — 统一缓存，256 KB–1 MB</li>
-        </ul>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-mmu">L1 ITLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">40 项 · 全关联 · 指令</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-mmu">L1 DTLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">40 项 · 全关联 · 数据</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <span class="tag tag-l2">L2 TLB</span>
+            <span style="color:var(--text-dim); font-size:11px;">1024 项 · 4-way set assoc · unified</span>
+          </div>
+          <p style="color:var(--text-dim); font-size:10px; margin-top:4px;">Cortex-A15: L2 TLB 256 项 · Cortex-A78: 48+48 L1, 1024 L2</p>
+        </div>
+      </div>
+
+      <h3>TLB 查找流程</h3>
+      <div class="card">
+        <div class="flow-box">
+          <div class="step"><span class="num">①</span>VA 到达，先查 <span class="hi">L1 ITLB</span> / <span class="hi">L1 DTLB</span></div>
+          <div class="step"><span class="num">②</span>命中 → 直接返回 <span class="hi">PA + 属性</span></div>
+          <div class="step"><span class="num">③</span><span style="color:#ffa657">L1 miss</span> → 查 <span class="hi">L2 TLB</span>（共享）</div>
+          <div class="step"><span class="num">④</span>命中 → 填充 L1，返回 PA</div>
+          <div class="step"><span class="num">⑤</span><span style="color:#ffa657">L2 miss</span> → MMU 硬件页表行走</div>
+          <div class="step"><span class="num">⑥</span>遍历 PTE → 填充 L2 → L1 → 返回 PA</div>
+          <div class="step"><span class="num">⑦</span>RISC-V: <span class="hi">sfence.vma</span> / ARM: <span class="hi">TLBI</span> 刷对应条目</div>
+        </div>
       </div>
 
       <div class="card">
-        <div class="card-title">🔹 片上互联</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:12px;">
-          <li>• <b style="color:var(--text)">L3 Cache</b> — 所有核共享，16–32 MB，分 bank</li>
-          <li>• <b style="color:var(--text)">NoC / Crossbar</b> — 核间互联，AMBA AXI/ACE 协议</li>
-          <li>• <b style="color:var(--text)">Cache Coherency</b> — MESI / MOESI / ARM CHI</li>
-        </ul>
+        <div class="card-title">TLB 与 Cache 的区别</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          <b style="color:var(--text)">TLB</b> = 虚拟地址→物理地址（VA→PA），条目是页表项（PTE），按页对齐。<br>
+          <b style="color:var(--text)">Cache</b> = 物理地址→数据（PA→Data），条目是 cache line（64B），按块对齐。<br>
+          访问顺序：CPU → <b style="color:var(--mmu)">TLB</b> → PA → <b style="color:var(--l1)">L1 Cache</b> → L2 → L3 → DRAM
+        </p>
       </div>
+    </div>
 
+    <!-- Cache tab -->
+    <div id="tab-cache" class="tab-content">
+      <h2>📦 多级 Cache 层次结构</h2>
       <div class="card">
-        <div class="card-title">🔹 片外</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:12px;">
-          <li>• <b style="color:var(--text)">DRAM Controller</b> — DDR4/DDR5，64/128-bit 带宽</li>
-          <li>• <b style="color:var(--text)">物理内存</b> — 物理地址空间</li>
-        </ul>
+        <div class="card-title">为什么需要多级 Cache？</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          L1 最小最 快（独立 I/D，贴近核）→ L2 中等 → L3/LLC 最大最慢（所有核共享）。<br>
+          通过 <b style="color:var(--text)">包容性 (Inclusive)</b> 或 <b style="color:var(--text)">排斥性 (Exclusive)</b> 策略管理各层关系。
+        </p>
       </div>
 
-      <h3>真实芯片参考</h3>
       <table class="proc-table">
         <thead>
-          <tr><th>芯片</th><th>架构</th><th>TLB</th><th>L1</th><th>L2</th><th>L3</th></tr>
+          <tr><th>芯片</th><th>架构</th><th>L1 I/D</th><th>L2</th><th>L3</th></tr>
         </thead>
         <tbody>
-          <tr><td style="color:var(--info)">Cortex-A72</td><td>ARMv8 64b</td><td>I/D TLB 各 40 项</td><td>32+32 KB</td><td>512 KB</td><td>1–4 MB</td></tr>
-          <tr><td style="color:var(--info)">Cortex-A78</td><td>ARMv8 64b</td><td>I/D TLB 各 48 项</td><td>32+32 KB</td><td>256 KB</td><td>2–4 MB</td></tr>
-          <tr><td style="color:var(--info)">SiFive U740</td><td>RISC-V rv64gc</td><td>I/D TLB 各 48 项</td><td>32+32 KB</td><td>2 MB</td><td>—</td></tr>
-          <tr><td style="color:var(--info)">Andes AN660</td><td>RISC-V rv64gc</td><td>双级 TLB</td><td>32+32 KB</td><td>512 KB</td><td>共享</td></tr>
-          <tr><td style="color:var(--info)">Intel i7-9700K</td><td>x86-64</td><td>ITLB 128 / DTLB 64</td><td>32+32 KB</td><td>256 KB</td><td>12 MB</td></tr>
+          <tr><td style="color:var(--info)">Cortex-A72</td><td>ARMv8</td><td>48+32 KB</td><td>512 KB</td><td>1–4 MB共享</td></tr>
+          <tr><td style="color:var(--info)">Cortex-A78</td><td>ARMv8</td><td>32+32 KB</td><td>256 KB</td><td>2–4 MB共享</td></tr>
+          <tr><td style="color:var(--riscv)">SiFive U740</td><td>RISC-V</td><td>32+32 KB</td><td>2 MB</td><td>—</td></tr>
+          <tr><td style="color:var(--riscv)">Andes AN660</td><td>RISC-V</td><td>32+32 KB</td><td>512 KB</td><td>共享</td></tr>
+          <tr><td style="color:var(--info)">Intel i7-9700K</td><td>x86-64</td><td>32+32 KB</td><td>256 KB</td><td>12 MB</td></tr>
         </tbody>
       </table>
-      <p class="note">* 数据来自各芯片的 TRM (Technical Reference Manual)，不同配置有所差异</p>
+
+      <h3>Cache 查找流程</h3>
+      <div class="card">
+        <div class="flow-box">
+          <div class="step"><span class="num">①</span>PA 到达，查 <span class="hi">L1 D-Cache</span>（PIPT）</div>
+          <div class="step"><span class="num">②</span>命中 → 数据返回 CPU</div>
+          <div class="step"><span class="num">③</span><span style="color:#ffa657">L1 miss</span> → 查 <span class="hi">L2 Cache</span>（VIPT）</div>
+          <div class="step"><span class="num">④</span>命中 → 数据填 L1 返回</div>
+          <div class="step"><span class="num">⑤</span><span style="color:#ffa657">L2 miss</span> → 查 <span class="hi">L3 / DRAM</span></div>
+          <div class="step"><span class="num">⑥</span>数据写回各层 Cache（取决于包容性策略）</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">VIPT vs PIPT</div>
+        <p style="color:var(--text-dim); font-size:11px;">
+          <b style="color:var(--text)">VIPT</b>（L1 I / L2）：VA 的 index+offset 查 Cache，tag 比对时需 PA。<br>
+          <b style="color:var(--text)">PIPT</b>（L1 D）：用 PA 查 Cache，无别名问题。<br>
+          <b style="color:var(--text)">别名问题</b>：同一物理页映射到不同 VA 时，VIPT 可能查到同一 cache line 的两份拷贝（需软件管理或 MMU 消除）。
+        </p>
+      </div>
     </div>
 
     <!-- Flow tab -->
     <div id="tab-flow" class="tab-content">
-      <h2>🔄 虚拟地址翻译流程</h2>
+      <h2>🔄 完整内存访问路径</h2>
       <div class="card">
-        <div class="card-title">CPU 发起内存访问 → 完整路径</div>
+        <div class="card-title">CPU 发起 Load/Store → 数据返回</div>
         <div class="flow-box">
-          <div class="step"><span class="num">①</span>CPU 生成 <span class="highlight">虚拟地址 (VA)</span></div>
-          <div class="step"><span class="num">②</span>查 <span class="highlight">ITLB / DTLB</span> — 命中则得 PA</div>
-          <div class="step"><span class="num">③</span><span style="color:#ffa657">TLB miss</span> → MMU 查页表</div>
-          <div class="step"><span class="num">④</span>硬件页表行走器 (HWPTW) 遍历 PTE</div>
-          <div class="step"><span class="num">⑤</span>将 PTE 写入 TLB，返 PA</div>
-          <div class="step"><span class="num">⑥</span>用 PA 查 <span class="highlight">L1 D-Cache</span></div>
+          <div class="step"><span class="num">①</span>CPU 生成 <span class="hi">虚拟地址 (VA)</span></div>
+          <div class="step"><span class="num">②</span>MMU 查 <span class="hi">L1 ITLB / DTLB</span></div>
+          <div class="step"><span class="num">③</span><span style="color:#ffa657">TLB miss</span> → 查 L2 TLB</div>
+          <div class="step"><span class="num">④</span><span style="color:#ffa657">L2 miss</span> → HWPTW 遍历页表 PTE</div>
+          <div class="step"><span class="num">⑤</span>得到 <span class="hi">物理地址 (PA)</span></div>
+          <div class="step"><span class="num">⑥</span>用 PA 查 <span class="hi">L1 D-Cache</span></div>
           <div class="step"><span class="num">⑦</span><span style="color:#ffa657">L1 miss</span> → 查 L2 Cache</div>
-          <div class="step"><span class="num">⑧</span><span style="color:#ffa657">L2 miss</span> → 查 L3 / 主存</div>
-          <div class="step"><span class="num">⑨</span>数据返回，填各层 Cache</div>
-          <div class="step"><span class="num">⑩</span>sfence.vma — 跨 ASID 或 satp 切换时刷 TLB</div>
+          <div class="step"><span class="num">⑧</span><span style="color:#ffa657">L2 miss</span> → 查 L3 / DRAM</div>
+          <div class="step"><span class="num">⑨</span>数据返回，填充各层 Cache</div>
+          <div class="step"><span class="num">⑩</span>TLB + Cache 一致性维护</div>
         </div>
       </div>
 
-      <h3>RISC-V 关键语义</h3>
+      <h3>RISC-V vs ARM 关键差异</h3>
       <div class="card">
-        <div class="card-title">satp 寄存器</div>
-        <p style="color:var(--text-dim); font-size:12px;">MODE=8 (Sv39) / MODE=9 (Sv48) | ASID | PPN</p>
-        <p style="color:var(--text-dim); font-size:12px; margin-top:4px;"> MODE=0 则禁用 Sv39/Sv48 地址翻译</p>
+        <div class="card-title">RISC-V</div>
+        <p style="color:var(--text-dim); font-size:11px;">satp.MODE 决定是否使能地址翻译，sfence.vma 显式刷 TLB，ASID 隔离不同地址空间。</p>
       </div>
       <div class="card">
-        <div class="card-title">sfence.vma [rs1] [rs2]</div>
-        <p style="color:var(--text-dim); font-size:12px;">rs1=目标虚拟地址（可省略=所有）</p>
-        <p style="color:var(--text-dim); font-size:12px;">rs2=目标 ASID（可省略=所有 ASID）</p>
-        <p style="color:var(--text-dim); font-size:12px; margin-top:4px;">同步流水线，确保新页表对后续取指可见</p>
-      </div>
-
-      <h3>ARMv8 对应关系</h3>
-      <div class="card">
-        <p style="color:var(--text-dim); font-size:12px;">TTBR0_EL1 → 用户空间页表基址</p>
-        <p style="color:var(--text-dim); font-size:12px;">TTBR1_EL1 → 内核空间页表基址</p>
-        <p style="color:var(--text-dim); font-size:12px;">TCR_EL1 → T0SZ/T1SZ 控制地址宽度</p>
-        <p style="color:var(--text-dim); font-size:12px;">TLBI VMALLIS → 全局 TLB 失效 (VMALL = all)</p>
+        <div class="card-title">ARM</div>
+        <p style="color:var(--text-dim); font-size:11px;">TTBR0/1 双页表基址寄存器，TCR 控制地址宽度，TLBI VMALLIS 刷全部 TLB，Stage-1/Stage-2 两级翻译（虚拟化）。</p>
       </div>
     </div>
 
@@ -653,34 +834,27 @@
       <h2>📚 参考资料</h2>
       <div class="card">
         <div class="card-title">Standards / Specs</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2;">
-          <li>• <a href="https://riscv.org/technical/specifications/" target="_blank" style="color:var(--info)">RISC-V ISA Specification</a> — privileged spec 包含 MMU/SATP/Sfence</li>
-          <li>• <a href="https://developer.arm.com/documentation" target="_blank" style="color:var(--info)">ARM Architecture Reference Manual</a> — ARMv8 内存管理</li>
-          <li>• <a href="https://www.cs.utexas.edu/~lin/architecture/ARM-Cortex-A15.pdf" target="_blank" style="color:var(--info)">UT Austin ARM Cortex-A15 Architecture</a> (PDF)</li>
+        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2.1;">
+          <li>• <a href="https://riscv.org/technical/specifications/" target="_blank" style="color:var(--info)">RISC-V ISA Specification</a> — privileged spec 含 MMU/SATP</li>
+          <li>• <a href="https://developer.arm.com/documentation" target="_blank" style="color:var(--info)">ARM Architecture Reference</a> — ARMv8 内存管理</li>
+          <li>• <a href="https://www.cs.utexas.edu/~lin/architecture/ARM-Cortex-A15.pdf" target="_blank" style="color:var(--info)">UT Austin ARM Cortex-A15</a> (PDF)</li>
         </ul>
       </div>
       <div class="card">
         <div class="card-title">Real Chip TRMs</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2;">
-          <li>• <a href="https://www.sifive.com/documentation" target="_blank" style="color:var(--info)">SiFive Freedom U740 Manual</a> — RISC-V 多核缓存/TLB</li>
-          <li>• <a href="https://www.andestech.com/" target="_blank" style="color:var(--info)">Andes Technology</a> — RISC-V CoreLink / NDS</li>
+        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2.1;">
+          <li>• <a href="https://www.sifive.com/documentation" target="_blank" style="color:var(--info)">SiFive Freedom U740 Manual</a></li>
+          <li>• <a href="https://www.andestech.com/" target="_blank" style="color:var(--info)">Andes Technology</a> — NDS core</li>
           <li>• ARM Cortex-A72 <a href="https://developer.arm.com/documentation/102472/" target="_blank" style="color:var(--info)">TRM</a></li>
         </ul>
       </div>
       <div class="card">
-        <div class="card-title">Cache Coherency</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2;">
-          <li>• <a href="https://en.wikipedia.org/wiki/MESI_protocol" target="_blank" style="color:var(--info)">MESI Protocol</a> — Modified/Exclusive/Shared/Invalid</li>
-          <li>• <a href="https://en.wikipedia.org/wiki/Cache_coherency" target="_blank" style="color:var(--info)">Cache Coherency</a> — Snooping vs Directory</li>
-          <li>• <a href="https://www.sifive.com/blog/cache-coherency-in-multicore-systems" target="_blank" style="color:var(--info)">SiFive Cache Coherency Blog</a></li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="card-title">Textbooks / Courses</div>
-        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2;">
+        <div class="card-title">Books / Articles</div>
+        <ul style="list-style:none; padding:0; color:var(--text-dim); font-size:11px; line-height:2.1;">
           <li>• Hennessy & Patterson — <em>Computer Architecture: A Quantitative Approach</em></li>
-          <li>• <a href="https://en.wikipedia.org/wiki/Translation_lookaside_buffer" target="_blank" style="color:var(--info)">TLB — Wikipedia</a> — 多级 TLB 结构</li>
-          <li>• <a href="https://docs.kernel.org/arm64/memory.html" target="_blank" style="color:var(--info)">Linux ARM64 Memory</a> (kernel docs)</li>
+          <li>• <a href="https://www.sifive.com/blog/cache-coherency-in-multicore-systems" target="_blank" style="color:var(--info)">SiFive Cache Coherency Blog</a></li>
+          <li>• <a href="https://en.wikipedia.org/wiki/MESI_protocol" target="_blank" style="color:var(--info)">MESI Protocol</a></li>
+          <li>• <a href="https://en.wikipedia.org/wiki/Translation_lookaside_buffer" target="_blank" style="color:var(--info)">TLB — Wikipedia</a></li>
         </ul>
       </div>
     </div>
@@ -688,6 +862,16 @@
 </main>
 
 <script>
+function showArch(arch) {
+  document.getElementById('btn-riscv').classList.toggle('active', arch === 'riscv');
+  document.getElementById('btn-arm').classList.toggle('active', arch === 'arm');
+  document.getElementById('rv-core').style.display    = arch === 'riscv' ? '' : 'none';
+  document.getElementById('arm-core').style.display   = arch === 'arm'  ? '' : 'none';
+  document.getElementById('title-riscv').style.display = arch === 'riscv' ? '' : 'none';
+  document.getElementById('title-arm').style.display   = arch === 'arm'  ? '' : 'none';
+  document.getElementById('rv-reg-box').style.display  = arch === 'riscv' ? '' : 'none';
+  document.getElementById('arm-reg-box').style.display = arch === 'arm'  ? '' : 'none';
+}
 function switchTab(el, id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
