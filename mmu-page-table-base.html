@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MMU 页表基址寄存器可视化：x86 CR3 · ARM64 TTBR0/1 · RISC-V satp</title>
+  <meta name="description" content="三大主流 CPU 架构的页表基址寄存器位图，以及 Linux 内核如何使用它们。" />
+  <style>
+    /* ===== 1. 设计令牌 ===== */
+    :root {
+      --bg-0: #0a0c10;
+      --bg-1: #0f1218;
+      --bg-2: #161b24;
+      --bg-3: #1d2330;
+      --bg-card: #131820;
+      --border: #2a3140;
+      --border-soft: #1f2632;
+      --text-0: #e6e8eb;
+      --text-1: #b6bcc7;
+      --text-2: #7a8294;
+      --text-3: #555c6b;
+      --grid-line: #232a36;
+
+      /* 三架构主题色 */
+      --x86: #f0a23a;          /* 琥珀 */
+      --x86-dim: #5a3f17;
+      --x86-soft: rgba(240,162,58,0.10);
+      --arm64: #3ddcc4;        /* 青蓝 */
+      --arm64-dim: #15564d;
+      --arm64-soft: rgba(61,220,196,0.10);
+      --riscv: #ff6b6b;        /* 珊瑚红 */
+      --riscv-dim: #5b1f1f;
+      --riscv-soft: rgba(255,107,107,0.10);
+
+      /* 等宽与正文字体 */
+      --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Mono",
+                   Menlo, Consolas, "Roboto Mono", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue",
+                   "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-display: "IBM Plex Serif", "Source Serif Pro", Georgia, "Times New Roman",
+                      "Songti SC", "Source Han Serif", serif;
+    }
+
+    /* ===== 2. 基础重置 ===== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(61,220,196,0.06), transparent 60%),
+        radial-gradient(1000px 500px at -10% 30%, rgba(240,162,58,0.05), transparent 60%),
+        var(--bg-0);
+      color: var(--text-0);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-decoration: none; }
+    code, pre { font-family: var(--font-mono); }
+
+    /* ===== 3. 容器 / 排版 ===== */
+    .container { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+    h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-family: var(--font-display); font-size: 44px; line-height: 1.15; }
+    h2 {
+      font-family: var(--font-display);
+      font-size: 30px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    h3 { font-family: var(--font-mono); font-size: 14px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-2); }
+    h4 { font-size: 16px; }
+    p { margin: 0 0 12px; color: var(--text-1); }
+    .muted { color: var(--text-2); }
+    .small { font-size: 13px; }
+    .mono { font-family: var(--font-mono); }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      border: 1px solid var(--border);
+      color: var(--text-1);
+      background: var(--bg-2);
+    }
+
+    /* ===== 4. 顶部 Hero ===== */
+    .hero {
+      padding: 80px 0 56px;
+      border-bottom: 1px solid var(--border-soft);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(180deg, transparent 0, transparent 70%, var(--bg-0) 100%);
+      pointer-events: none;
+    }
+    .terminal {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 24px;
+    }
+    .terminal .prompt { color: var(--arm64); }
+    .terminal .path { color: var(--x86); }
+    .hero-title {
+      max-width: 900px;
+      margin-bottom: 16px;
+    }
+    .hero-title .hl {
+      background: linear-gradient(120deg, var(--x86), var(--arm64), var(--riscv));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-sub {
+      max-width: 760px;
+      font-size: 17px;
+      color: var(--text-1);
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .hero-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-1);
+      background: var(--bg-1);
+    }
+    .hero-chip .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block;
+    }
+    .hero-chip.x86 .dot { background: var(--x86); }
+    .hero-chip.arm64 .dot { background: var(--arm64); }
+    .hero-chip.riscv .dot { background: var(--riscv); }
+
+    /* ===== 5. 顶部导航（粘性） ===== */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      background: rgba(10,12,16,0.85);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .topnav-inner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 32px;
+      max-width: 1240px;
+      margin: 0 auto;
+      overflow-x: auto;
+    }
+    .nav-brand {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-1);
+      margin-right: auto;
+      white-space: nowrap;
+    }
+    .nav-brand .accent { color: var(--arm64); }
+    .nav-link {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: var(--text-1);
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .nav-link:hover { background: var(--bg-2); color: var(--text-0); }
+    .nav-link.x86.active { color: var(--x86); border-color: var(--x86-dim); background: var(--x86-soft); }
+    .nav-link.arm64.active { color: var(--arm64); border-color: var(--arm64-dim); background: var(--arm64-soft); }
+    .nav-link.riscv.active { color: var(--riscv); border-color: var(--riscv-dim); background: var(--riscv-soft); }
+    .nav-link.compare.active { color: var(--text-0); border-color: var(--border); background: var(--bg-2); }
+
+    /* ===== 6. 章节通用 ===== */
+    section.arch {
+      padding: 80px 0;
+      border-bottom: 1px solid var(--border-soft);
+      scroll-margin-top: 60px;
+    }
+    .arch-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .arch-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.08em;
+    }
+    .arch.x86 .arch-badge { color: var(--x86); background: var(--x86-soft); border: 1px solid var(--x86-dim); }
+    .arch.arm64 .arch-badge { color: var(--arm64); background: var(--arm64-soft); border: 1px solid var(--arm64-dim); }
+    .arch.riscv .arch-badge { color: var(--riscv); background: var(--riscv-soft); border: 1px solid var(--riscv-dim); }
+    .arch-intro {
+      max-width: 820px;
+      color: var(--text-1);
+      margin-bottom: 36px;
+      font-size: 15px;
+    }
+
+    /* ===== 7. 位图组件 ===== */
+    .bitmap-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      padding: 28px 24px 20px;
+      position: relative;
+    }
+    .bitmap-wrap + .bitmap-wrap { margin-top: 24px; }
+    .bitmap-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-1);
+      margin-bottom: 16px;
+    }
+    .bitmap-label .reg-name {
+      font-weight: 600;
+      color: var(--text-0);
+      letter-spacing: 0.04em;
+    }
+    .bitmap {
+      display: grid;
+      grid-template-columns: repeat(var(--bits, 64), 1fr);
+      gap: 1px;
+      background: var(--grid-line);
+      border: 1px solid var(--grid-line);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .bit {
+      height: 36px;
+      background: var(--bg-3);
+      position: relative;
+      cursor: default;
+      transition: filter 0.15s ease, transform 0.15s ease;
+    }
+    .bit .bit-num {
+      position: absolute;
+      top: 4px;
+      left: 0; right: 0;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-3);
+      pointer-events: none;
+    }
+    .bit:hover { filter: brightness(1.6); z-index: 2; }
+    .bit.highlight {
+      outline: 2px solid var(--text-0);
+      outline-offset: -1px;
+      z-index: 3;
+      filter: brightness(1.4);
+    }
+    .bit-end-marker {
+      grid-column: 1 / -1;
+      background: transparent;
+      height: 0;
+    }
+    .bit[data-field="paddr"] { background: var(--x86); }
+    .bit[data-field="paddr-arm"] { background: var(--arm64); }
+    .bit[data-field="ppn"] { background: var(--riscv); }
+    .bit[data-field="asid"] { background: var(--arm64); filter: saturate(1.2); }
+    .bit[data-field="asid-rv"] { background: var(--riscv); }
+    .bit[data-field="mode"] { background: var(--riscv); }
+    .bit[data-field="pwt"] { background: #b48a3a; }
+    .bit[data-field="pcd"] { background: #946b2c; }
+    .bit[data-field="pcid"] { background: #c9a44a; }
+    .bit[data-field="cnp"] { background: #2aa090; }
+    .bit[data-field="rsvd"] { background: #2a3140; }
+    .bit[data-field="noflush"] { background: #d4a548; }
+
+    .arch.x86 .bitmap[data-arch="x86"] .bit { background: var(--x86-dim); }
+    .arch.arm64 .bitmap[data-arch="arm"] .bit { background: var(--arm64-dim); }
+    .arch.riscv .bitmap[data-arch="rv"] .bit { background: var(--riscv-dim); }
+
+    /* arch-specific color overrides: when bit has data-field matching */
+    .bitmap[data-arch="x86"] .bit[data-field="paddr"] { background: var(--x86); }
+    .bitmap[data-arch="arm"] .bit[data-field="paddr-arm"] { background: var(--arm64); }
+    .bitmap[data-arch="arm"] .bit[data-field="asid"] { background: linear-gradient(135deg, var(--arm64), #2bb39e); }
+    .bitmap[data-arch="arm"] .bit[data-field="cnp"] { background: var(--arm64); filter: brightness(0.7); }
+    .bitmap[data-arch="rv"] .bit[data-field="ppn"] { background: var(--riscv); }
+    .bitmap[data-arch="rv"] .bit[data-field="asid-rv"] { background: linear-gradient(135deg, var(--riscv), #c25555); }
+    .bitmap[data-arch="rv"] .bit[data-field="mode"] { background: #b85050; }
+
+    .bitmap-axis {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 6px;
+    }
+
+    /* tooltip */
+    .tooltip {
+      position: fixed;
+      z-index: 100;
+      pointer-events: none;
+      max-width: 320px;
+      background: #0c1018;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-0);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      transform: translate(-50%, calc(-100% - 10px));
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .tooltip.show { opacity: 1; }
+    .tooltip .t-name { color: var(--text-0); margin-bottom: 4px; font-weight: 600; }
+    .tooltip .t-bits { color: var(--text-2); font-size: 11px; }
+    .tooltip .t-desc { color: var(--text-1); margin-top: 4px; font-family: var(--font-sans); font-size: 12px; }
+
+    /* ===== 8. 字段卡片 ===== */
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+    .field-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 18px 18px 16px;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+      position: relative;
+    }
+    .field-card:hover { border-color: var(--border); }
+    .field-card.active { border-color: var(--text-0); transform: translateY(-2px); }
+    .arch.x86 .field-card.active { border-color: var(--x86); }
+    .arch.arm64 .field-card.active { border-color: var(--arm64); }
+    .arch.riscv .field-card.active { border-color: var(--riscv); }
+    .fc-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .fc-name {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-0);
+      font-weight: 600;
+    }
+    .fc-bits {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-2);
+      background: var(--bg-2);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .fc-desc {
+      color: var(--text-1);
+      font-size: 13.5px;
+      margin: 6px 0 10px;
+    }
+    .fc-linux {
+      border-top: 1px dashed var(--border-soft);
+      padding-top: 10px;
+      font-size: 12.5px;
+      color: var(--text-2);
+    }
+    .fc-linux strong { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 9. 模式切换 (x86) ===== */
+    .mode-toggle {
+      display: inline-flex;
+      background: var(--bg-2);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 3px;
+      margin-bottom: 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .mode-toggle button {
+      background: transparent;
+      color: var(--text-2);
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    .mode-toggle button.active {
+      background: var(--x86-soft);
+      color: var(--x86);
+    }
+
+    /* ===== 10. 代码块 ===== */
+    .code-block {
+      background: #06080c;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #d6dae3;
+      margin-top: 12px;
+    }
+    .code-block .line { display: block; white-space: pre; }
+    .code-block .ln { color: #3a4252; user-select: none; display: inline-block; width: 28px; }
+    .code-block .c-kw { color: #e89b6f; }
+    .code-block .c-fn { color: #82d4ff; }
+    .code-block .c-str { color: #a5e8a5; }
+    .code-block .c-com { color: #5b6675; font-style: italic; }
+    .code-block .c-num { color: #d6a1ff; }
+    .code-block .c-tt { color: #ffd479; }
+    .code-block .c-mac { color: #ff9ec1; }
+    .code-block .c-cn { color: var(--text-2); }
+
+    .code-section {
+      margin-top: 28px;
+    }
+    .code-section .file-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-2);
+      background: var(--bg-2);
+      padding: 2px 8px;
+      border-radius: 4px 4px 0 0;
+      border: 1px solid var(--border-soft);
+      border-bottom: none;
+    }
+    .code-section .code-block {
+      border-top-left-radius: 0;
+    }
+
+    /* ===== 11. 流程图 (SVG) ===== */
+    .flow-wrap {
+      margin-top: 28px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 24px;
+      overflow-x: auto;
+    }
+    .flow-wrap h4 { margin-bottom: 14px; }
+    .flow-svg { display: block; min-width: 760px; width: 100%; height: auto; }
+
+    /* ===== 12. 对比表 ===== */
+    .compare-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 28px;
+      font-size: 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .compare-table th, .compare-table td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: top;
+    }
+    .compare-table th {
+      background: var(--bg-2);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      color: var(--text-2);
+      text-transform: uppercase;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .compare-table td.dim {
+      font-family: var(--font-mono);
+      color: var(--text-1);
+      font-size: 13px;
+    }
+    .col-x86 { color: var(--x86); }
+    .col-arm64 { color: var(--arm64); }
+    .col-riscv { color: var(--riscv); }
+    .compare-table th.col-x86 { color: var(--x86); }
+    .compare-table th.col-arm64 { color: var(--arm64); }
+    .compare-table th.col-riscv { color: var(--riscv); }
+
+    /* ===== 13. 引用 / footer ===== */
+    .refs {
+      padding: 60px 0 80px;
+    }
+    .refs h2 { margin-bottom: 24px; }
+    .ref-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    .ref-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 16px 18px;
+      font-size: 13px;
+    }
+    .ref-card .ref-title { color: var(--text-0); font-weight: 600; margin-bottom: 4px; }
+    .ref-card .ref-url { color: var(--text-2); font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+    footer.colophon {
+      border-top: 1px solid var(--border-soft);
+      padding: 24px 0 40px;
+      color: var(--text-3);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    /* ===== 14. 响应式 ===== */
+    @media (max-width: 900px) {
+      .container { padding: 0 20px; }
+      h1 { font-size: 32px; }
+      h2 { font-size: 24px; }
+      .bitmap { grid-template-columns: repeat(var(--bits, 64), minmax(8px, 1fr)); }
+      .bit { height: 28px; }
+      .bit .bit-num { display: none; }
+      .hero { padding: 60px 0 40px; }
+      section.arch { padding: 50px 0; }
+    }
+    @media (max-width: 600px) {
+      .topnav-inner { padding: 10px 16px; }
+      .nav-brand { display: none; }
+      .bitmap { grid-template-columns: repeat(var(--bits, 64), minmax(4px, 1fr)); }
+      .bit { height: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============== HERO ============== -->
+<header class="hero">
+  <div class="container">
+    <div class="terminal">
+      <span class="prompt">$</span> <span class="path">/docs/mmu/</span> cat page-table-base-registers.md
+    </div>
+    <h1 class="hero-title">
+      三种 CPU 架构的 <span class="hl">页表基址寄存器</span><br />
+      位图 · 字段含义 · Linux 内核使用
+    </h1>
+    <p class="hero-sub">
+      三个寄存器、三种设计哲学、三个 Linux 内核子系统。本文把
+      <strong style="color:var(--x86)">x86&nbsp;CR3</strong>、
+      <strong style="color:var(--arm64)">ARM64&nbsp;TTBR0/TTBR1</strong> 与
+      <strong style="color:var(--riscv)">RISC-V&nbsp;satp</strong>
+      摆在同一张桌面上，逐一拆解每个字段，并附上 Linux&nbsp;6.x 内核中真实使用它们的代码路径。
+    </p>
+    <div class="hero-meta">
+      <span class="hero-chip x86"><span class="dot"></span> x86_64 · CR3 · 64-bit · PCID 可选</span>
+      <span class="hero-chip arm64"><span class="dot"></span> ARM64 · TTBR0_EL1 / TTBR1_EL1 · 64-bit · 内置 ASID</span>
+      <span class="hero-chip riscv"><span class="dot"></span> RISC-V · satp · 64-bit / 32-bit · MODE 字段</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============== STICKY NAV ============== -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="nav-brand">~/mmu-base<span class="accent">_</span></div>
+    <a class="nav-link x86" href="#x86">x86 CR3</a>
+    <a class="nav-link arm64" href="#arm64">ARM64 TTBR0/1</a>
+    <a class="nav-link riscv" href="#riscv">RISC-V satp</a>
+    <a class="nav-link compare" href="#compare">对比表</a>
+    <a class="nav-link" href="#refs">引用</a>
+  </div>
+</nav>
+
+<!-- ============== X86 ============== -->
+<section class="arch x86" id="x86">
+  <div class="container">
+    <div class="arch-header">
+      <h2>x86_64 · CR3</h2>
+      <span class="arch-badge">PAGE-DIRECTORY BASE · x86</span>
+    </div>
+    <p class="arch-intro">
+      CR3 在长模式（64-bit）下是 PML4（Page Map Level 4）表的物理基址寄存器。
+      写入 CR3 会隐含地触发一次非全局 TLB 刷新（除非开启 PCID + noflush）。
+      Linux 借助 <code>CR4.PCIDE</code> 与 <code>INVPCID</code> 指令实现「进程 PCID + 内核 PCID」双标签，从而把
+      KPTI（Page Table Isolation，又称 PTI）开销压到最低。
+    </p>
+
+    <div class="mode-toggle" id="cr3-mode-toggle" role="tablist" aria-label="CR3 模式">
+      <button data-mode="legacy" class="active">Legacy · CR4.PCIDE=0</button>
+      <button data-mode="pcid">PCID · CR4.PCIDE=1</button>
+    </div>
+
+    <!-- 位图：Legacy 模式 -->
+    <div class="bitmap-wrap" data-mode="legacy">
+      <div class="bitmap-label">
+        <span class="reg-name">CR3</span>
+        <span class="muted">64-bit · 长模式分页结构基址 · 写入即触发 TLB 刷新</span>
+      </div>
+      <div class="bitmap" data-arch="x86" data-bits="64" id="cr3-bitmap-legacy">
+        <!-- bits 63..0 由 JS 注入 -->
+      </div>
+      <div class="bitmap-axis">
+        <span>bit 63</span>
+        <span>bit 32</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <!-- 位图：PCID 模式 -->
+    <div class="bitmap-wrap" data-mode="pcid" style="display:none">
+      <div class="bitmap-label">
+        <span class="reg-name">CR3</span>
+        <span class="muted">CR4.PCIDE=1 · 引入 12-bit PCID + noflush 标志</span>
+      </div>
+      <div class="bitmap" data-arch="x86" data-bits="64" id="cr3-bitmap-pcid">
+        <!-- bits 63..0 由 JS 注入 -->
+      </div>
+      <div class="bitmap-axis">
+        <span>bit 63</span>
+        <span>bit 32</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <div class="fields-grid" id="cr3-fields"></div>
+
+    <!-- Linux 使用 -->
+    <div class="code-section">
+      <h3 style="margin-top:36px">Linux 如何使用 CR3</h3>
+
+      <div class="file-tag">arch/x86/mm/tlb.c · flush_tlb_mm_range()</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* 进程退出 / munmap 触发 TLB shootdown：先取 mm-&gt;context.pcid，</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   再由 INVPCID type=1 精确刷新该 PCID 对应条目（不开 PCID 则降级为全刷） */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-kw">void</span> <span class="c-fn">flush_tlb_mm_range</span>(<span class="c-kw">struct</span> mm_struct *mm, <span class="c-kw">unsigned long</span> start,</span>
+<span class="line"><span class="ln"> 4</span>                          <span class="c-kw">unsigned long</span> end, <span class="c-kw">unsigned</span> <span class="c-kw">int</span> stride,</span>
+<span class="line"><span class="ln"> 5</span>                          <span class="c-kw">unsigned</span> <span class="c-kw">long</span> vma <span class="c-mac">__always_unused</span>)</span>
+<span class="line"><span class="ln"> 6</span>{</span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-kw">unsigned long</span> pcids = <span class="c-fn">pcid_set_all</span>();</span>
+<span class="line"><span class="ln"> 8</span>    <span class="c-kw">if</span> (cpu_feature_enabled(X86_FEATURE_INVPCID)) {</span>
+<span class="line"><span class="ln"> 9</span>        <span class="c-fn">invpcid_flush_all</span>(pcids);          <span class="c-com">// INVPCID type=3</span></span>
+<span class="line"><span class="ln">10</span>    } <span class="c-kw">else</span> {</span>
+<span class="line"><span class="ln">11</span>        <span class="c-fn">__flush_tlb_all</span>();                 <span class="c-com">// mov cr3, cr3</span></span>
+<span class="line"><span class="ln">12</span>    }</span>
+<span class="line"><span class="ln">13</span>}</span>
+<span class="line"><span class="ln">14</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/x86/mm/cpu_entry_area.c · cr3_set_user_pcid()</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* PTI 关键路径：syscall 入口 / 中断返回时切换到「用户页表 + 用户 PCID」</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   返回内核时切回「用户页表 + 内核 PCID」以减少 TLB 刷新 */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-kw">static inline</span> <span class="c-kw">void</span> <span class="c-fn">cr3_set_user_pcid</span>(<span class="c-kw">unsigned long</span> pcid)</span>
+<span class="line"><span class="ln"> 4</span>{</span>
+<span class="line"><span class="ln"> 5</span>    <span class="c-kw">unsigned long</span> cr3 = __pa(current-&gt;mm-&gt;pgd);</span>
+<span class="line"><span class="ln"> 6</span>    cr3 |= <span class="c-num">pcid</span>;                              <span class="c-com">// bits 11:0 = PCID</span></span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-kw">if</span> (static_cpu_has(X86_FEATURE_PCID))</span>
+<span class="line"><span class="ln"> 8</span>        <span class="c-kw">this_cpu_write</span>(cpu_tlbstate.cr3, cr3);</span>
+<span class="line"><span class="ln"> 9</span>    __write_cr3(cr3);</span>
+<span class="line"><span class="ln">10</span>}</span>
+<span class="line"><span class="ln">11</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/x86/entry/entry_64.S · 中断返回切换 CR3</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* 从中断返回到用户态：若当前 CR3 仍指向「内核 PCID」，切回「用户 PCID」</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   利用 noflush 标志（bit 63）避免再次全刷 TLB */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-tt">SYM_CODE_START_LOCAL</span>(.Lparanoid_exit_restore)</span>
+<span class="line"><span class="ln"> 4</span>    movq    %rsp, %rdi</span>
+<span class="line"><span class="ln"> 5</span>    call    <span class="c-fn">paranoid_exit_restore</span></span>
+<span class="line"><span class="ln"> 6</span>    ...</span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-tt">SWITCH_TO_USER_CR3_NOSPEC</span> scratch_reg=%rdi  <span class="c-com">// 关键切换宏</span></span>
+<span class="line"><span class="ln"> 8</span>    ...</span>
+<span class="line"><span class="ln"> 9</span><span class="c-tt">SYM_CODE_END</span>(.Lparanoid_exit_restore)</span>
+<span class="line"><span class="ln">10</span></span></pre>
+    </div>
+
+    <!-- 流程图：CR3 on context switch -->
+    <div class="flow-wrap">
+      <h4>流程：进程切换中 CR3 的写时序</h4>
+      <svg class="flow-svg" viewBox="0 0 900 220" xmlns="http://www.w3.org/2000/svg" aria-label="x86 CR3 在 context switch 中的流程">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b6bcc7" />
+          </marker>
+        </defs>
+        <style>
+          .bx { fill: #161b24; stroke: #2a3140; }
+          .bx-x86 { fill: rgba(240,162,58,0.08); stroke: var(--x86); }
+          .tx { fill: #e6e8eb; font: 12px ui-monospace, monospace; }
+          .tx2 { fill: #7a8294; font: 11px ui-monospace, monospace; }
+          .arr { stroke: #b6bcc7; stroke-width: 1.4; fill: none; }
+        </style>
+        <!-- Step 1 -->
+        <rect class="bx" x="20" y="40" width="180" height="60" rx="8"/>
+        <text class="tx" x="32" y="62">schedule() 选定 next</text>
+        <text class="tx2" x="32" y="82">switch_to() → __switch_to</text>
+        <!-- arrow -->
+        <path class="arr" d="M200,70 L240,70" marker-end="url(#arr)"/>
+        <!-- Step 2 -->
+        <rect class="bx" x="240" y="40" width="200" height="60" rx="8"/>
+        <text class="tx" x="252" y="62">switch_mm_irqs_off()</text>
+        <text class="tx2" x="252" y="82">load_new_mm_cr3 → __write_cr3()</text>
+        <path class="arr" d="M440,70 L480,70" marker-end="url(#arr)"/>
+        <!-- Step 3 -->
+        <rect class="bx-x86" x="480" y="40" width="200" height="60" rx="8"/>
+        <text class="tx" x="492" y="62">CR3 ← PGD_PA | PCID</text>
+        <text class="tx2" x="492" y="82">bit63=noflush? 1: 硬件 flush 非全局</text>
+        <path class="arr" d="M680,70 L720,70" marker-end="url(#arr)"/>
+        <!-- Step 4 -->
+        <rect class="bx" x="720" y="40" width="160" height="60" rx="8"/>
+        <text class="tx" x="732" y="62">MMU 重新走 PML4</text>
+        <text class="tx2" x="732" y="82">新地址空间生效</text>
+        <!-- 底部注释 -->
+        <text class="tx2" x="20" y="135">• 无 PCID：每次写 CR3 → 全 TLB flush（昂贵）</text>
+        <text class="tx2" x="20" y="155">• 有 PCID：不同 PCID 的 TLB 条目互不干扰，回切进程时仅需</text>
+        <text class="tx2" x="40" y="172">INVPCID type=1 刷掉旧 PCID 即可</text>
+        <text class="tx2" x="20" y="195">• KPTI：用户/内核各自 PCID（0 / 1），切换位图但保留 TLB</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============== ARM64 ============== -->
+<section class="arch arm64" id="arm64">
+  <div class="container">
+    <div class="arch-header">
+      <h2>ARM64 · TTBR0_EL1 / TTBR1_EL1</h2>
+      <span class="arch-badge">VMSAv8-64 · 双翻译表基址 · 内置 ASID</span>
+    </div>
+    <p class="arch-intro">
+      ARM64 用 <strong>两个翻译表基址寄存器</strong> 把虚拟地址空间劈成两半：bit 63 = 0 走
+      <code>TTBR0_EL1</code>（用户空间，per-process），bit 63 = 1 走 <code>TTBR1_EL1</code>（内核空间，global）。
+      两个寄存器都用 VMSAv8-64 长描述符格式把 16-bit ASID 与页表基址打包在一起，
+      不需要额外的 PCID 寄存器。KPTI 通过在异常进出时把 <code>TTBR1_EL1</code> 在
+      <code>swapper_pg_dir</code> 与 <code>tramp_pg_dir</code> 之间互换实现。
+    </p>
+
+    <div class="bitmap-wrap">
+      <div class="bitmap-label">
+        <span class="reg-name">TTBR0_EL1</span>
+        <span class="muted">低虚拟地址空间 · 用户态 · 进程切换时改写</span>
+      </div>
+      <div class="bitmap" data-arch="arm" data-bits="64" id="ttbr0-bitmap"></div>
+      <div class="bitmap-axis">
+        <span>bit 63</span>
+        <span>bit 32</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <div class="bitmap-wrap">
+      <div class="bitmap-label">
+        <span class="reg-name">TTBR1_EL1</span>
+        <span class="muted">高虚拟地址空间 · 内核 · 启动时一次写入（KPTI 下多次切换）</span>
+      </div>
+      <div class="bitmap" data-arch="arm" data-bits="64" id="ttbr1-bitmap"></div>
+      <div class="bitmap-axis">
+        <span>bit 63</span>
+        <span>bit 32</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <div class="fields-grid" id="arm64-fields"></div>
+
+    <!-- Linux 使用 -->
+    <div class="code-section">
+      <h3 style="margin-top:36px">Linux 如何使用 TTBR0/1</h3>
+
+      <div class="file-tag">arch/arm64/include/asm/mmu_context.h · cpu_switch_mm()</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* 进程切换：把 next-&gt;mm 的 PGD 物理地址 + ASID 写进 TTBR0_EL1。</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   BUG_ON 防止内核页表 swapper_pg_dir 被错误地塞到 TTBR0。</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-com">   ASID 取自 mm-&gt;context.id 的低 16 位。 */</span></span>
+<span class="line"><span class="ln"> 4</span><span class="c-kw">static inline void</span> <span class="c-fn">cpu_switch_mm</span>(pgd_t *pgd, <span class="c-kw">struct</span> mm_struct *mm)</span>
+<span class="line"><span class="ln"> 5</span>{</span>
+<span class="line"><span class="ln"> 6</span>    <span class="c-fn">BUG_ON</span>(pgd == swapper_pg_dir);</span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-fn">cpu_set_reserved_ttbr0</span>();</span>
+<span class="line"><span class="ln"> 8</span>    <span class="c-fn">cpu_do_switch_mm</span>(virt_to_phys(pgd), mm);</span>
+<span class="line"><span class="ln"> 9</span>}</span>
+<span class="line"><span class="ln">10</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/arm64/mm/context.c · 新 ASID 分配与 flush</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* ASID allocator：版本号 + 位图。版本递增意味着「所有旧 ASID 已失效」</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   此时无需遍历，直接把所有 CPU 的 TTBR0.ASID 一起刷掉。 */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-kw">static void</span> <span class="c-fn">flush_context</span>(<span class="c-kw">void</span>)</span>
+<span class="line"><span class="ln"> 4</span>{</span>
+<span class="line"><span class="ln"> 5</span>    <span class="c-kw">int</span> cpu; <span class="c-fn">u64</span> asid;</span>
+<span class="line"><span class="ln"> 6</span>    <span class="c-fn">write_seqcount_begin</span>(&amp;asid_lock);</span>
+<span class="line"><span class="ln"> 7</span>    asid = ++asid_generation;            <span class="c-com">// bump version</span></span>
+<span class="line"><span class="ln"> 8</span>    <span class="c-fn">cpumask_clear</span>(cpu_asid_map);</span>
+<span class="line"><span class="ln"> 9</span>    <span class="c-fn">write_seqcount_end</span>(&amp;asid_lock);</span>
+<span class="line"><span class="ln">10</span>    <span class="c-fn">smp_wmb</span>();</span>
+<span class="line"><span class="ln">11</span>    <span class="c-fn">cpumask_call_function</span>(asid_map,</span>
+<span class="line"><span class="ln">12</span>        <span class="c-fn">tlbi_context_asid</span>, <span class="c-kw">void</span> *arg); <span class="c-com">// local TLBI</span></span>
+<span class="line"><span class="ln">13</span>}</span>
+<span class="line"><span class="ln">14</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/arm64/kernel/entry.S · KPTI TTBR1 切换</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* KPTI：从 EL0 回到 EL1 时，把 TTBR1 切回 swapper_pg_dir（完整内核页表）。</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   进入 EL0 之前则切到 tramp_pg_dir（仅含 trampoline 代码段）。 */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-tt">SYM_CODE_START_LOCAL</span>(tramp_exit)</span>
+<span class="line"><span class="ln"> 4</span>    <span class="c-tt">msr</span>    ttbr1_el1, x1                  <span class="c-com">// x1 = tramp_pg_dir 物理地址</span></span>
+<span class="line"><span class="ln"> 5</span>    <span class="c-tt">isb</span></span>
+<span class="line"><span class="ln"> 6</span>    ...</span>
+<span class="line"><span class="ln"> 7</span><span class="c-tt">SYM_CODE_END</span>(tramp_exit)</span>
+<span class="line"><span class="ln"> 8</span><span class="c-com">/* 等价 C 路径在 mmu.c 的 kpti_install_ng_mappings() 里建表。 */</span></span>
+<span class="line"><span class="ln"> 9</span></span></pre>
+    </div>
+
+    <!-- 流程图 -->
+    <div class="flow-wrap">
+      <h4>流程：进程切换 + KPTI 进出时 TTBR0/1 的写时序</h4>
+      <svg class="flow-svg" viewBox="0 0 980 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b6bcc7" />
+          </marker>
+        </defs>
+        <style>
+          .bx { fill: #161b24; stroke: #2a3140; }
+          .bx-arm { fill: rgba(61,220,196,0.08); stroke: var(--arm64); }
+          .tx { fill: #e6e8eb; font: 12px ui-monospace, monospace; }
+          .tx2 { fill: #7a8294; font: 11px ui-monospace, monospace; }
+          .arr { stroke: #b6bcc7; stroke-width: 1.4; fill: none; }
+        </style>
+        <rect class="bx" x="20" y="30" width="180" height="60" rx="8"/>
+        <text class="tx" x="32" y="52">进程 A 运行中</text>
+        <text class="tx2" x="32" y="72">TTBR0=PGD_A, ASID=5</text>
+        <path class="arr" d="M200,60 L240,60" marker-end="url(#arr2)"/>
+
+        <rect class="bx" x="240" y="30" width="200" height="60" rx="8"/>
+        <text class="tx" x="252" y="52">schedule() → B</text>
+        <text class="tx2" x="252" y="72">cpu_switch_mm(PDG_B, mm_B)</text>
+        <path class="arr" d="M440,60 L480,60" marker-end="url(#arr2)"/>
+
+        <rect class="bx-arm" x="480" y="30" width="220" height="60" rx="8"/>
+        <text class="tx" x="492" y="52">TTBR0 ← PGD_B | ASID=8</text>
+        <text class="tx2" x="492" y="72">TLB 中 ASID=5 条目自然失效</text>
+        <path class="arr" d="M700,60 L740,60" marker-end="url(#arr2)"/>
+
+        <rect class="bx" x="740" y="30" width="220" height="60" rx="8"/>
+        <text class="tx" x="752" y="52">进程 B 用户态运行</text>
+        <text class="tx2" x="752" y="72">TTBR1 = swapper_pg_dir</text>
+
+        <!-- KPTI row -->
+        <rect class="bx" x="20" y="130" width="180" height="60" rx="8"/>
+        <text class="tx" x="32" y="152">EL0 用户态</text>
+        <text class="tx2" x="32" y="172">trampoline 返回前</text>
+        <path class="arr" d="M200,160 L240,160" marker-end="url(#arr2)"/>
+
+        <rect class="bx-arm" x="240" y="130" width="200" height="60" rx="8"/>
+        <text class="tx" x="252" y="152">TTBR1 ← tramp_pg_dir</text>
+        <text class="tx2" x="252" y="172">tramp_exit() / KPTI on</text>
+        <path class="arr" d="M440,160 L480,160" marker-end="url(#arr2)"/>
+
+        <rect class="bx" x="480" y="130" width="220" height="60" rx="8"/>
+        <text class="tx" x="492" y="152">用户代码开始执行</text>
+        <text class="tx2" x="492" y="172">只能访问用户地址空间</text>
+        <path class="arr" d="M700,160 L740,160" marker-end="url(#arr2)"/>
+
+        <rect class="bx" x="740" y="130" width="220" height="60" rx="8"/>
+        <text class="tx" x="752" y="152">EL0 → EL1 异常</text>
+        <text class="tx2" x="752" y="172">tramp_enter 恢复 swapper</text>
+
+        <text class="tx2" x="20" y="220">• EL0 硬件只读 TTBR0 → KPTI 把「不该看到的内核页」从 TTBR1 抹掉</text>
+        <text class="tx2" x="20" y="240">• 软件 PAN：临时把 TTBR0 指向 reserved_pg_dir 防止内核误访用户</text>
+        <text class="tx2" x="20" y="260">• ASID 16-bit → 65536 个进程，超过则 bump version 全部失效</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============== RISC-V ============== -->
+<section class="arch riscv" id="riscv">
+  <div class="container">
+    <div class="arch-header">
+      <h2>RISC-V · satp</h2>
+      <span class="arch-badge">S-MODE · 单寄存器 · MODE 字段选翻译方案</span>
+    </div>
+    <p class="arch-intro">
+      RISC-V 只有一个 <code>satp</code>（Supervisor Address Translation and Protection）寄存器，
+      它把 <strong>翻译方案选择 (MODE)</strong>、<strong>ASID</strong>、<strong>根页表 PPN</strong> 三件事塞进同一个 64-bit 寄存器。
+      没有 TTBR 切换、没有 PCID noflush 标志位；TLB 维护全部由 <code>sfence.vma</code> 指令承担。
+      Linux RISC-V 因此实现相对干净——一个寄存器、一个汇编宏。
+    </p>
+
+    <div class="bitmap-wrap">
+      <div class="bitmap-label">
+        <span class="reg-name">satp (RV64 · Sv39 / Sv48 / Sv57)</span>
+        <span class="muted">64-bit · MODE [63:60] / ASID [59:44] / PPN [43:0]</span>
+      </div>
+      <div class="bitmap" data-arch="rv" data-bits="64" id="satp-bitmap"></div>
+      <div class="bitmap-axis">
+        <span>bit 63</span>
+        <span>bit 32</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <div class="bitmap-wrap">
+      <div class="bitmap-label">
+        <span class="reg-name">satp (RV32 · Sv32)</span>
+        <span class="muted">32-bit · MODE [31] / ASID [30:22] / PPN [21:0]</span>
+      </div>
+      <div class="bitmap" data-arch="rv" data-bits="32" id="satp-rv32-bitmap"></div>
+      <div class="bitmap-axis">
+        <span>bit 31</span>
+        <span>bit 16</span>
+        <span>bit 0</span>
+      </div>
+    </div>
+
+    <div class="fields-grid" id="riscv-fields"></div>
+
+    <!-- MODE 详细 -->
+    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 10px;">
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 0</div>
+        <div class="muted small">Bare · 关闭分页 · VA = PA</div>
+      </div>
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 1</div>
+        <div class="muted small">Reserved (Sv32 仅 RV32)</div>
+      </div>
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 8</div>
+        <div class="muted small">Sv39 · 39-bit VA · 3 级页表</div>
+      </div>
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 9</div>
+        <div class="muted small">Sv48 · 48-bit VA · 4 级页表</div>
+      </div>
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 10</div>
+        <div class="muted small">Sv57 · 57-bit VA · 5 级页表</div>
+      </div>
+      <div class="field-card" style="text-align:center">
+        <div class="fc-name" style="color:var(--riscv)">MODE = 11</div>
+        <div class="muted small">Sv64 · 64-bit VA · 6 级页表</div>
+      </div>
+    </div>
+
+    <!-- Linux 使用 -->
+    <div class="code-section">
+      <h3 style="margin-top:36px">Linux 如何使用 satp</h3>
+
+      <div class="file-tag">arch/riscv/include/asm/csr.h · CSR_SATP 写宏</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* 写入 satp：</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   satp = (mode &lt;&lt; 60) | (asid &lt;&lt; 44) | (ppn)</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-com">   ppn = root_page_table / PAGE_SIZE */</span></span>
+<span class="line"><span class="ln"> 4</span><span class="c-kw">static inline void</span> <span class="c-fn">csr_write</span>(<span class="c-kw">unsigned long</span> val, <span class="c-kw">unsigned long</span> csr)</span>
+<span class="line"><span class="ln"> 5</span>{</span>
+<span class="line"><span class="ln"> 6</span>    <span class="c-kw">if</span> (csr == CSR_SATP)</span>
+<span class="line"><span class="ln"> 7</span>        <span class="c-fn">__asm__</span> <span class="c-tt">volatile</span>(<span class="c-str">"csrw satp, %0"</span> :: <span class="c-tt">"rK"</span>(val) : <span class="c-str">"memory"</span>);</span>
+<span class="line"><span class="ln"> 8</span>    <span class="c-kw">else</span></span>
+<span class="line"><span class="ln"> 9</span>        <span class="c-fn">__asm__</span> <span class="c-tt">volatile</span>(<span class="c-str">"csrw %0, %1"</span> :: <span class="c-tt">"i"</span>(csr), <span class="c-tt">"rK"</span>(val) : <span class="c-str">"memory"</span>);</span>
+<span class="line"><span class="ln">10</span>}</span>
+<span class="line"><span class="ln">11</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/riscv/mm/context.c · 切换 mm 时写 satp</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* 进程切换：把新 mm 的 PGD 物理页号 + ASID 写进 satp。</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   写入之后必须 sfence.vma 同步 TLB。 */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-kw">static inline void</span> <span class="c-fn">set_mm</span>(<span class="c-kw">struct</span> mm_struct *prev,</span>
+<span class="line"><span class="ln"> 4</span>                      <span class="c-kw">struct</span> mm_struct *next,</span>
+<span class="line"><span class="ln"> 5</span>                      <span class="c-kw">unsigned long</span> cpu)</span>
+<span class="line"><span class="ln"> 6</span>{</span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-kw">unsigned long</span> satp = <span class="c-fn">__pa</span>(next-&gt;pgd);</span>
+<span class="line"><span class="ln"> 8</span>    satp |= (cntx2asid(atomic_long_read(&amp;next-&gt;context.id)) &lt;&lt; 44);</span>
+<span class="line"><span class="ln"> 9</span>    satp |= satp_mode;</span>
+<span class="line"><span class="ln">10</span>    <span class="c-fn">csr_write</span>(satp, CSR_SATP);</span>
+<span class="line"><span class="ln">11</span>    <span class="c-fn">flush_tlb_mm</span>(next);                   <span class="c-com">// 本地 sfence.vma</span></span>
+<span class="line"><span class="ln">12</span>}</span>
+<span class="line"><span class="ln">13</span></span></pre>
+
+      <div class="file-tag" style="margin-top:18px">arch/riscv/mm/tlbflush.c · 多核远程 TLB 刷新</div>
+<pre class="code-block"><span class="line"><span class="ln"> 1</span><span class="c-com">/* RISC-V 的 sfence.vma 只刷当前 hart。需要 SBI / IPI 通知其他 hart。</span></span>
+<span class="line"><span class="ln"> 2</span><span class="c-com">   现代内核一律走 ASID 变体 sfence.vma 以保留全局 (G) 项。 */</span></span>
+<span class="line"><span class="ln"> 3</span><span class="c-kw">void</span> <span class="c-fn">flush_tlb_mm</span>(<span class="c-kw">struct</span> mm_struct *mm)</span>
+<span class="line"><span class="ln"> 4</span>{</span>
+<span class="line"><span class="ln"> 5</span>    <span class="c-kw">unsigned long</span> asid = <span class="c-fn">get_mm_asid</span>(mm);</span>
+<span class="line"><span class="ln"> 6</span>    <span class="c-fn">__sbi_tlb_flush_range</span>(mm, <span class="c-num">0</span>, <span class="c-num">0</span>, PAGE_SIZE);</span>
+<span class="line"><span class="ln"> 7</span>    <span class="c-cn">    // 内部判断是否要广播 sbi_remote_sfence_vma_asid()</span></span>
+<span class="line"><span class="ln"> 8</span>}</span>
+<span class="line"><span class="ln"> 9</span></span></pre>
+    </div>
+
+    <!-- 流程图 -->
+    <div class="flow-wrap">
+      <h4>流程：RISC-V satp 写 + sfence.vma 序列</h4>
+      <svg class="flow-svg" viewBox="0 0 940 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b6bcc7" />
+          </marker>
+        </defs>
+        <style>
+          .bx { fill: #161b24; stroke: #2a3140; }
+          .bx-rv { fill: rgba(255,107,107,0.08); stroke: var(--riscv); }
+          .tx { fill: #e6e8eb; font: 12px ui-monospace, monospace; }
+          .tx2 { fill: #7a8294; font: 11px ui-monospace, monospace; }
+          .arr { stroke: #b6bcc7; stroke-width: 1.4; fill: none; }
+        </style>
+        <rect class="bx" x="20" y="40" width="180" height="60" rx="8"/>
+        <text class="tx" x="32" y="62">构造 satp 值</text>
+        <text class="tx2" x="32" y="82">PPN | (ASID &lt;&lt; 44) | (MODE &lt;&lt; 60)</text>
+        <path class="arr" d="M200,70 L240,70" marker-end="url(#arr3)"/>
+
+        <rect class="bx-rv" x="240" y="40" width="200" height="60" rx="8"/>
+        <text class="tx" x="252" y="62">csrw satp, value</text>
+        <text class="tx2" x="252" y="82">硬件立即切换根页表</text>
+        <path class="arr" d="M440,70 L480,70" marker-end="url(#arr3)"/>
+
+        <rect class="bx-rv" x="480" y="40" width="220" height="60" rx="8"/>
+        <text class="tx" x="492" y="62">sfence.vma rs1, rs2</text>
+        <text class="tx2" x="492" y="82">旧 ASID 条目失效（保留全局）</text>
+        <path class="arr" d="M700,70 L740,70" marker-end="url(#arr3)"/>
+
+        <rect class="bx" x="740" y="40" width="180" height="60" rx="8"/>
+        <text class="tx" x="752" y="62">新地址空间生效</text>
+        <text class="tx2" x="752" y="82">MMU 用新 satp 重走页表</text>
+
+        <text class="tx2" x="20" y="135">• sfence.vma x0, x0   →  刷所有非全局条目（最重）</text>
+        <text class="tx2" x="20" y="155">• sfence.vma x0, asid →  刷指定 ASID 的所有条目（推荐）</text>
+        <text class="tx2" x="20" y="175">• sfence.vma va, asid →  精确刷单个 VA 的某 ASID 条目</text>
+        <text class="tx2" x="20" y="200">• 多核：写完本地 satp 后通过 SBI_REMOTE_SFENCE 通知其他 hart</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 对比表 ============== -->
+<section id="compare" style="padding:80px 0; border-bottom:1px solid var(--border-soft);">
+  <div class="container">
+    <h2>三架构横向对比</h2>
+    <p class="muted" style="max-width:780px; margin-top:8px;">
+      同一个「保存根页表基址」的需求，三种实现各有侧重。把这张表和上面的位图对照看，
+      你就能理解 Linux 内核里那些看似冗余的宏（<code>__write_cr3</code> / <code>cpu_switch_mm</code> /
+      <code>csr_write(CSR_SATP)</code>）为什么会被写成现在这个样子。
+    </p>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th class="col-x86">x86_64</th>
+          <th class="col-arm64">ARM64</th>
+          <th class="col-riscv">RISC-V</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>寄存器</td>
+          <td class="col-x86">CR3 (64-bit)</td>
+          <td class="col-arm64">TTBR0_EL1 + TTBR1_EL1</td>
+          <td class="col-riscv">satp (64-bit / 32-bit)</td>
+        </tr>
+        <tr>
+          <td>用户/内核基址分离</td>
+          <td>单寄存器（KPTI 切换 PGD）</td>
+          <td>天然分离（按 VA bit 63 选）</td>
+          <td>单寄存器（Linux 自己分两套 satp）</td>
+        </tr>
+        <tr>
+          <td>ASID 字段</td>
+          <td>CR3 隐式（CR3[11:0] = PCID）</td>
+          <td>TTBR0[63:48]（16-bit）</td>
+          <td>satp[59:44]（16-bit）</td>
+        </tr>
+        <tr>
+          <td>ASID 大小</td>
+          <td>12-bit (4096)</td>
+          <td>16-bit (65536)</td>
+          <td>16-bit (65536)</td>
+        </tr>
+        <tr>
+          <td>页表基址字段</td>
+          <td>CR3[51:12]（40-bit 物理）</td>
+          <td>TTBRx[47:1]（4KB 粒度）</td>
+          <td>satp[43:0]（44-bit PPN）</td>
+        </tr>
+        <tr>
+          <td>分页方案选择</td>
+          <td>由 CR4.PAE / CR4.LA57 等决定</td>
+          <td>由 TCR_EL1.TGx / TTxSZ 决定</td>
+          <td>由 satp.MODE 直接编码（0/8/9/10/11）</td>
+        </tr>
+        <tr>
+          <td>切换指令</td>
+          <td>MOV CR3, rax（mov-to-CR3）</td>
+          <td>MSR TTBR0_EL1, x0</td>
+          <td>CSRRW satp, a0</td>
+        </tr>
+        <tr>
+          <td>TLB 维护指令</td>
+          <td>MOV CR3 / INVLPG / INVPCID</td>
+          <td>TLBI 系列 / 隐式于 TTBR 写</td>
+          <td>SFENCE.VMA (rs1=VA, rs2=ASID)</td>
+        </tr>
+        <tr>
+          <td>多核 TLB shootdown</td>
+          <td>IPI → 受影响 CPU INVPCID</td>
+          <td>IPI → TLBI 指令 + SMMU</td>
+          <td>IPI + SBI remote fence</td>
+        </tr>
+        <tr>
+          <td>KPTI / PTI 实现</td>
+          <td>额外维护 user-pgd &amp; kernel-pgd，PCID 标签 0/1</td>
+          <td>TTBR1 在 swapper/tramp 之间切</td>
+          <td>暂无强制 KPTI；单寄存器方案天然不易</td>
+        </tr>
+        <tr>
+          <td>ASID 耗尽策略</td>
+          <td>invpcid 全局 flush</td>
+          <td>asid_generation++ + 全 TLBI</td>
+          <td>flush_tlb_mm 走全局 sfence</td>
+        </tr>
+        <tr>
+          <td>Linux 内核入口</td>
+          <td class="dim">__switch_to / cr3_set_*</td>
+          <td class="dim">cpu_switch_mm / __switch_to</td>
+          <td class="dim">switch_to / set_mm / csr_write</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============== 引用 ============== -->
+<section class="refs" id="refs">
+  <div class="container">
+    <h2>引用与延伸阅读</h2>
+    <p class="muted" style="max-width:780px;">
+      本文技术细节均来自以下资料：Intel SDM Volume 3A、ARM Architecture Reference Manual ARMv8-A、
+      RISC-V Privileged ISA Manual 以及 Linux kernel 6.x 源码。
+    </p>
+    <div class="ref-grid">
+      <div class="ref-card">
+        <div class="ref-title">Intel® 64 and IA-32 Architectures Software Developer's Manual, Vol. 3A</div>
+        <div class="ref-url">Chapter 4 — Paging · Section 4.10 PCID / Section 4.10.2 INVPCID</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">ARM Architecture Reference Manual ARMv8-A</div>
+        <div class="ref-url">Chapter D8 — The AArch64 Virtual Memory System Architecture (VMSAv8-64) · TTBR0_EL1 / TTBR1_EL1</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">The RISC-V Instruction Set Manual, Volume II: Privileged Architecture</div>
+        <div class="ref-url">Chapter 4 — Supervisor-Level ISA · §4.1.1 satp · §4.2 SFENCE.VMA</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">Linux kernel — arch/x86/mm/, arch/arm64/mm/, arch/riscv/mm/</div>
+        <div class="ref-url">cr3_set_user_pcid · cpu_switch_mm · kpti_install_ng_mappings · set_mm · flush_tlb_mm_range</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">Documentation/x86/pti.rst</div>
+        <div class="ref-url">Page Table Isolation (KPTI / PTI) on x86</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">Documentation/arm64/memory.rst</div>
+        <div class="ref-url">AArch64 Linux memory layout &amp; TTBR0/1 selection by VA[63]</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">AArch64 Kernel Page Tables (wenboshen.org)</div>
+        <div class="ref-url">swapper_pg_dir / idmap_pg_dir / tramp_pg_dir 详解</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-title">kernel-internals.org — ARM64 Page Tables</div>
+        <div class="ref-url">TTBR0/1, translation granules, PTE format, ASID, Stage 2</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="colophon">
+  MMU Page-Table-Base Register Visualization · 2026 · Built for liulog.github.io
+</footer>
+
+<!-- ============== 浮动 tooltip ============== -->
+<div class="tooltip" id="tooltip" role="tooltip" aria-hidden="true">
+  <div class="t-name" id="tt-name"></div>
+  <div class="t-bits" id="tt-bits"></div>
+  <div class="t-desc" id="tt-desc"></div>
+</div>
+
+<!-- ============== 脚本 ============== -->
+<script>
+  /* -------- 字段定义 -------- */
+  // x86 CR3 - Legacy
+  const CR3_LEGACY = [
+    { from: 63, to: 52, field: 'rsvd',      name: 'Reserved',                      desc: '保留位，写 0；只有当 CR4.PCIDE=1 时 bit 63 才被定义为 noflush' },
+    { from: 51, to: 12, field: 'paddr',     name: 'PML4 Base Address',              desc: 'PML4（4 级页表根）的物理基址，低 12 位硬件视为 0，对齐 4 KB' },
+    { from: 11, to:  5, field: 'rsvd',      name: 'Reserved',                      desc: '保留位，写 0' },
+    { from:  4, to:  4, field: 'pcd',       name: 'PCD (Page-level Cache Disable)', desc: '为 PML4 自身的内存访问关闭缓存；MMIO 场景常用' },
+    { from:  3, to:  3, field: 'pwt',       name: 'PWT (Page-level Write-Through)', desc: '为 PML4 自身的内存访问启用写直达（write-through）' },
+    { from:  2, to:  0, field: 'rsvd',      name: 'Reserved',                      desc: '保留位，写 0' },
+  ];
+  // x86 CR3 - PCID
+  const CR3_PCID = [
+    { from: 63, to: 63, field: 'noflush',   name: 'PCID noflush',                   desc: '当 CR4.PCIDE=1 时：写 CR3 不刷新该 PCID 对应的非全局 TLB 条目' },
+    { from: 62, to: 52, field: 'rsvd',      name: 'Reserved',                      desc: '保留位，写 0' },
+    { from: 51, to: 12, field: 'paddr',     name: 'PML4 Base Address',              desc: 'PML4 物理基址；写入后 MMU 立即按新根页表走查' },
+    { from: 11, to:  0, field: 'pcid',      name: 'PCID (Process Context ID)',      desc: '12-bit 进程上下文 ID；TLB 条目按 PCID 标签独立缓存，避免切换时全刷' },
+  ];
+
+  // ARM64 TTBR0/TTBR1 (VMSAv8-64, 4KB granule, CnP=0)
+  const TTBR_FIELDS = [
+    { from: 63, to: 48, field: 'asid',      name: 'ASID (16-bit)',                  desc: '当前 mm 的地址空间 ID；TCR_EL1.AS 位决定是否启用。Linux 从 mm->context.id 取低 16 位' },
+    { from: 47, to:  1, field: 'paddr-arm', name: 'BADDR (Translation Table Base)', desc: '一级页表的物理基址。bit 0 之外的位都参与寻址；低 N 位 RES0 由粒度决定（4KB 时 N=1）' },
+    { from:  0, to:  0, field: 'cnp',       name: 'CnP (Common not Private)',       desc: '当 ASID=0 时此位无意义；置 1 时表示此 TTBR 被多个核共享，ASID 字段被忽略' },
+  ];
+
+  // RISC-V satp (RV64)
+  const SATP_RV64 = [
+    { from: 63, to: 60, field: 'mode',      name: 'MODE (Translation Scheme)',      desc: '0=Bare, 8=Sv39, 9=Sv48, 10=Sv57, 11=Sv64。其余值保留，写入时硬件忽略' },
+    { from: 59, to: 44, field: 'asid-rv',   name: 'ASID (16-bit)',                  desc: '地址空间 ID；与 x86 PCID / ARM64 ASID 同等角色' },
+    { from: 43, to:  0, field: 'ppn',       name: 'PPN (Root Page Table PPN)',      desc: '根页表的物理页号 = 物理地址 / 4 KiB；44-bit 支持 16 TiB 物理' },
+  ];
+  // RISC-V satp (RV32)
+  const SATP_RV32 = [
+    { from: 31, to: 31, field: 'mode',      name: 'MODE (1-bit)',                   desc: '0=Bare, 1=Sv32。RV32 不支持更高 Svxx' },
+    { from: 30, to: 22, field: 'asid-rv',   name: 'ASID (9-bit)',                   desc: '9-bit 地址空间 ID（受寄存器宽度限制）' },
+    { from: 21, to:  0, field: 'ppn',       name: 'PPN (22-bit)',                   desc: '根页表 PPN，物理页号 = 物理地址 / 4 KiB' },
+  ];
+
+  /* -------- 字段卡片元数据（右侧说明） -------- */
+  const CR3_FIELDS_DESC = {
+    'rsvd':      { linux: 'Linux 直接用 __read_cr3 / __write_cr3 访问；保留位全部置 0。' },
+    'paddr':     { linux: 'load_new_mm_cr3() 中执行 __pa(next->pgd) 取得物理地址，再 | PCID。源码：arch/x86/mm/tlb.c。' },
+    'pcd':       { linux: 'Linux 在 x86 启动时一般置 0；某些 NUMA / KVM 半虚拟化场景会通过 MTRR/PAT 而非 PCD 控制缓存。' },
+    'pwt':       { linux: '同上，启动时一般置 0。' },
+    'noflush':   { linux: '在 __switch_to 与 entry 路径的 SWITCH_TO_USER_CR3_NOSPEC 宏中设置，避免 TLB 反复被全刷。' },
+    'pcid':      { linux: 'Linux 早期即用 PCID 作为 ASID（12-bit → 4096）。内核会为 kernel / user 各分配一个 PCID，配合 KPTI 使用。' },
+  };
+  const ARM64_FIELDS_DESC = {
+    'asid':      { linux: '由 asid_allocator 管理；新 mm 在 init_new_context() 中分配。asid_generation 自增表示所有旧 ASID 全部失效。' },
+    'paddr-arm': { linux: 'cpu_switch_mm() 中用 virt_to_phys(pgd) 取得 PGD 物理地址；TTBR1 启动时写一次 = swapper_pg_dir。' },
+    'cnp':       { linux: 'Linux 6.x 已实现并使用：CPU 启动期间临时把 TTBR1 标记 CnP=1，让启动代码在打开 MMU 后仍能继续运行。' },
+  };
+  const RISCV_FIELDS_DESC = {
+    'mode':      { linux: '__sv39 / __sv48 / __sv57 等汇编宏构造写入值；启动时根据 kernel 编译选项确定并固化在 satp_mode 变量中。' },
+    'asid-rv':   { linux: 'context_switch() → set_mm() 把 mm->context.id 的低 16 位装入 satp[59:44]。' },
+    'ppn':       { linux: '取 __pa(next->pgd) 右移 12 位；写入前必须 sfence.vma 同步旧 TLB。' },
+  };
+
+  /* -------- 工具函数 -------- */
+  function fieldOf(bit, fields) {
+    for (const f of fields) {
+      if (bit >= f.to && bit <= f.from) return f;
+    }
+    return null;
+  }
+  function descFor(field, arch) {
+    if (!field) return '';
+    const map = {
+      'x86':   CR3_FIELDS_DESC,
+      'arm64': ARM64_FIELDS_DESC,
+      'riscv': RISCV_FIELDS_DESC,
+    }[arch];
+    return (map && map[field.field] && map[field.field].linux) || '';
+  }
+
+  /* -------- 渲染位图 -------- */
+  function renderBitmap(elemId, fields, bits, archKey) {
+    const root = document.getElementById(elemId);
+    if (!root) return;
+    root.style.setProperty('--bits', bits);
+    // 64-bit 字段按 from→to 从大到小；位图按 bit63 在最左、bit0 在最右
+    for (let b = bits - 1; b >= 0; b--) {
+      const cell = document.createElement('div');
+      cell.className = 'bit';
+      const f = fieldOf(b, fields);
+      if (f) {
+        cell.dataset.field = f.field;
+        cell.dataset.name = f.name;
+        cell.dataset.bits = (f.from === f.to) ? `bit ${f.from}` : `bits [${f.from}:${f.to}]`;
+        cell.dataset.desc = f.desc;
+      } else {
+        cell.dataset.field = 'rsvd';
+        cell.dataset.name = 'Unknown';
+        cell.dataset.bits = `bit ${b}`;
+        cell.dataset.desc = '';
+      }
+      // 数字标签每 8 bit 显示
+      if (b % 8 === 0) {
+        const n = document.createElement('span');
+        n.className = 'bit-num';
+        n.textContent = b;
+        cell.appendChild(n);
+      }
+      cell.dataset.arch = archKey;
+      root.appendChild(cell);
+    }
+  }
+
+  renderBitmap('cr3-bitmap-legacy',  CR3_LEGACY, 64, 'x86');
+  renderBitmap('cr3-bitmap-pcid',    CR3_PCID,   64, 'x86');
+  renderBitmap('ttbr0-bitmap',       TTBR_FIELDS,64, 'arm');
+  renderBitmap('ttbr1-bitmap',       TTBR_FIELDS,64, 'arm');
+  renderBitmap('satp-bitmap',        SATP_RV64,  64, 'rv');
+  renderBitmap('satp-rv32-bitmap',   SATP_RV32,  32, 'rv');
+
+  /* -------- 字段卡片渲染 -------- */
+  function renderFields(containerId, fields, archKey) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    for (const f of fields) {
+      const card = document.createElement('div');
+      card.className = 'field-card';
+      card.dataset.field = f.field;
+      const bitsLabel = (f.from === f.to) ? `[${f.from}]` : `[${f.from}:${f.to}]`;
+      card.innerHTML = `
+        <div class="fc-head">
+          <span class="fc-name">${f.name}</span>
+          <span class="fc-bits">${bitsLabel}</span>
+        </div>
+        <p class="fc-desc">${f.desc}</p>
+        <div class="fc-linux"><strong>Linux:</strong> ${descFor(f, archKey) || '—'}</div>
+      `;
+      c.appendChild(card);
+    }
+  }
+  renderFields('cr3-fields',    CR3_LEGACY, 'x86');
+  renderFields('arm64-fields',  TTBR_FIELDS,'arm64');
+  renderFields('riscv-fields',  SATP_RV64,  'riscv');
+
+  /* -------- tooltip -------- */
+  const tooltip = document.getElementById('tooltip');
+  const ttName = document.getElementById('tt-name');
+  const ttBits = document.getElementById('tt-bits');
+  const ttDesc = document.getElementById('tt-desc');
+  function highlight(field, arch) {
+    document.querySelectorAll('.field-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.field === field);
+    });
+    document.querySelectorAll(`.bit[data-arch="${arch}"]`).forEach(b => {
+      b.classList.toggle('highlight', b.dataset.field === field);
+    });
+  }
+  document.querySelectorAll('.bitmap').forEach(bm => {
+    bm.addEventListener('mouseover', (e) => {
+      const bit = e.target.closest('.bit');
+      if (!bit) return;
+      const arch = bit.dataset.arch === 'x86' ? 'x86'
+                  : bit.dataset.arch === 'arm' ? 'arm64'
+                  : 'riscv';
+      ttName.textContent = bit.dataset.name;
+      ttBits.textContent = bit.dataset.bits;
+      ttDesc.textContent = bit.dataset.desc;
+      tooltip.classList.add('show');
+      tooltip.setAttribute('aria-hidden', 'false');
+      const rect = bit.getBoundingClientRect();
+      tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+      tooltip.style.top  = (rect.top) + 'px';
+      highlight(bit.dataset.field, bit.dataset.arch);
+    });
+    bm.addEventListener('mouseout', () => {
+      tooltip.classList.remove('show');
+      tooltip.setAttribute('aria-hidden', 'true');
+      document.querySelectorAll('.field-card.active').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.bit.highlight').forEach(b => b.classList.remove('highlight'));
+    });
+  });
+
+  /* -------- 模式切换 (x86) -------- */
+  const toggle = document.getElementById('cr3-mode-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const mode = btn.dataset.mode;
+      toggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.bitmap-wrap[data-mode]').forEach(w => {
+        w.style.display = (w.dataset.mode === mode) ? '' : 'none';
+      });
+    });
+  }
+
+  /* -------- 导航 active 状态（滚动） -------- */
+  const navLinks = document.querySelectorAll('.nav-link');
+  const sections = ['x86', 'arm64', 'riscv', 'compare'].map(id => document.getElementById(id));
+  function updateNav() {
+    const scrollY = window.scrollY + 120;
+    let active = null;
+    for (const s of sections) {
+      if (s && s.offsetTop <= scrollY) active = s.id;
+    }
+    navLinks.forEach(l => {
+      l.classList.remove('active');
+      const h = l.getAttribute('href').replace('#', '');
+      if (h === active) l.classList.add('active');
+    });
+  }
+  window.addEventListener('scroll', updateNav, { passive: true });
+  updateNav();
+</script>
+</body>
+</html>

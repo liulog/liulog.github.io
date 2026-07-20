@@ -57,6 +57,10 @@ title: 首页
                 🔐 <a href="/linux-kpti-architecture.html">Linux KPTI 架构对照与 RISC-V 实现分析</a>
                 <small>（x86 / arm64 / RISC-V / LoongArch，含主线源码审核与切换图）</small>
             </li>
+            <li class="skill-item">
+                🧭 <a href="/mmu-page-table-base.html">MMU 页表基址寄存器可视化：x86 CR3 · ARM64 TTBR0/1 · RISC-V satp</a>
+                <small>（64-bit 位图 / 字段含义 / Linux 进程切换 / KPTI / sfence.vma 流程）</small>
+            </li>
         </ul>
         <p><small>🤖 部分内容由 AI 辅助整理，技术结论请结合文内源码链接交叉验证。</small></p>
     </div>
