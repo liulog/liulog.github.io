@@ -53,7 +53,11 @@ title: 首页
                 🖥 <a href="/smp-multicore-arch.html">SMP 多核处理器架构可视化</a>
                 <small>（4-Core TLB + Cache 层次结构，RISC-V / ARM 对比）</small>
             </li>
+            <li class="skill-item">
+                🔐 <a href="/linux-kpti-architecture.html">Linux KPTI 架构对照与 RISC-V 实现分析</a>
+                <small>（x86 / arm64 / RISC-V / LoongArch，含主线源码审核与切换图）</small>
+            </li>
         </ul>
-        <p><small>🤖 上述内容由 Minimax3 生成。</small></p>
+        <p><small>🤖 部分内容由 AI 辅助整理，技术结论请结合文内源码链接交叉验证。</small></p>
     </div>
 </div>
