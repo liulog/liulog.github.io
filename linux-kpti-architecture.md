@@ -2,25 +2,41 @@
 layout: default
 title: Linux KPTI：x86、Arm、RISC-V 与 LoongArch
 article: true
+page_class: kpti-article
 ---
 
 # Linux KPTI：x86、Arm、RISC-V 与 LoongArch
 
-> 资料核对日期：2026-07-19  
-> 范围：上游 Linux 主线提交 [`f2ec6312bf71`](https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/f2ec6312bf711369561bdcb22f8a63c0b118c479)（2026-07-18）和 Linux 官方文档。  
+> 资料核对日期：2026-07-22<br>
+> 范围：上游 Linux 主线提交 [`248951ddc14d`](https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/248951ddc14de84de3910f9b13f51491a8cd91df)（2026-07-21）和 Linux 官方文档。<br>
 > 结论中的“支持”特指 **Linux 主线提供可配置、可在用户态/内核态边界切换页表的 KPTI 实现**，不只是 ISA 理论上可以实现。
 
 <div class="audit-note" role="note">
   <strong>审核结论</strong>
-  <span>原稿的主结论成立。发布版补充了可复现的上游提交和架构切换图；没有把“硬件可实现”或“存在 trampoline”误写成“Linux 已支持”。</span>
+  <span>主结论成立：x86 与 arm64 已支持，RISC-V 主线未支持。审校同时区分了 x86-64 与 x86-32 PAE 的入口/TLB 细节，修正了 RISC-V 影子叶页表的影响范围，并标明哪些结论来自官方文档、哪些必须由源码交叉证明。</span>
 </div>
 
-## 1. 先给结论
+<nav class="article-map" aria-label="文章阅读地图">
+  <div class="article-map__intro">
+    <span>阅读地图</span>
+    <strong>先看结论，再按架构深入</strong>
+  </div>
+  <div class="article-map__links">
+    <a href="#conclusion"><b>01</b>结论</a>
+    <a href="#architecture-x86"><b>04</b>x86</a>
+    <a href="#architecture-arm64"><b>05</b>arm64</a>
+    <a href="#architecture-riscv"><b>06</b>RISC-V</a>
+    <a href="#fail-stop"><b>08</b>防错对比</a>
+    <a href="#evidence"><b>10</b>证据索引</a>
+  </div>
+</nav>
+
+<h2 id="conclusion">1. 先给结论</h2>
 
 | 架构 | Linux 主线 KPTI | Kconfig | 主要 cmdline | 当前实现概括 |
 | --- | --- | --- | --- | --- |
 | x86-64 | 支持 | `CONFIG_CPU_MITIGATIONS=y`、`CONFIG_MITIGATION_PAGE_TABLE_ISOLATION=y` | `pti=on/off/auto`、`nopti`、`mitigations=off` | 每个 `mm` 维护 kernel/user 两套顶层页表，用户页表只保留入口所需内核映射；CR3/PCID 成对切换 |
-| x86-32 PAE | 支持，但不是主要使用场景 | 同上，Kconfig 条件为 `X86_64 || X86_PAE` | 实现解析 `pti=`/`nopti`；官方参数表只把它们标为 X86-64 | 思路与 x86-64 相同，但顶层结构、预分配和性能条件更差 |
+| x86-32 PAE | 支持，但不是主要使用场景 | 同上，Kconfig 条件为 `X86_64 || X86_PAE` | 实现解析 `pti=`/`nopti`；官方参数表只把它们标为 X86-64 | 同样使用相邻双 PGD 和 CR3 bit 12 切换，但没有 64 位 PCID 快路径，入口见 `entry_32.S` |
 | arm64 | 支持 | `CONFIG_UNMAP_KERNEL_AT_EL0=y` | `kpti=0/1`、`mitigations=off` | 用户页表本来就在 TTBR0；KPTI 在 EL0 期间把 TTBR1 切到只含异常 trampoline 的页表 |
 | ARM 32-bit | 不支持主线 KPTI | 无对应项 | 无 | 不应把 arm64 的 `UNMAP_KERNEL_AT_EL0` 套到 ARM32 |
 | RISC-V | **不支持主线 KPTI** | 无对应项 | 无 | 每个进程 PGD 同时含用户映射和复制来的内核映射；陷入/返回不切换 `satp` |
@@ -39,7 +55,7 @@ article: true
     <div class="arch-view__heading"><strong>arm64</strong><span>主线支持</span></div>
     <div class="arch-view__root">EL0：TTBR0 + trampoline TTBR1</div>
     <div class="arch-view__switch">↕ 切换 TTBR1 / ASID</div>
-    <div class="arch-view__root arch-view__root--kernel">EL1：TTBR0 + 完整 TTBR1</div>
+    <div class="arch-view__root arch-view__root--kernel">EL1：完整 TTBR1；TTBR0 另受 PAN 等约束</div>
   </section>
   <section class="arch-view arch-view--missing">
     <div class="arch-view__heading"><strong>RISC-V</strong><span>主线未支持</span></div>
@@ -53,7 +69,30 @@ article: true
   </section>
 </div>
 
-## 2. KPTI 要解决什么问题
+<aside class="failstop-summary" aria-labelledby="failstop-summary-title">
+  <div class="failstop-summary__heading">
+    <span>本文重点</span>
+    <strong id="failstop-summary-title">漏切用户页表时，会不会立即暴露？</strong>
+    <a href="#fail-stop">查看完整分析 →</a>
+  </div>
+  <div class="failstop-card failstop-card--safe">
+    <span class="failstop-card__arch">x86</span>
+    <strong>通常立即 fault</strong>
+    <small>kernel PGD 的用户子树带顶层 NX，形成硬件 fail-stop。</small>
+  </div>
+  <div class="failstop-card failstop-card--risk">
+    <span class="failstop-card__arch">arm64</span>
+    <strong>可能静默遗留</strong>
+    <small>用户代码仍由 TTBR0 取指；错误的完整 TTBR1 不会阻止执行。</small>
+  </div>
+  <div class="failstop-card failstop-card--future">
+    <span class="failstop-card__arch">RISC-V</span>
+    <strong>没有天然同构 guard</strong>
+    <small>非叶 PTE 没有继承式 NX；强化设计需要额外复杂度。</small>
+  </div>
+</aside>
+
+<h2 id="problem">2. KPTI 要解决什么问题</h2>
 
 传统内核为了降低系统调用、异常、缺页和 `copy_to_user()`/`copy_from_user()` 的成本，通常让进程正在使用的地址空间同时包含：
 
@@ -93,7 +132,7 @@ KPTI 的核心不是“再检查一次权限”，而是让敏感内核映射在
 
 它主要缓解“用户态利用瞬态执行读取当前页表中的 supervisor-only 内核映射”。它不是 Spectre 所有变体的通用修复，也不能替代 SMEP/SMAP、PAN、RISC-V `SUM`、W^X、KASLR、内核内存隔离或针对具体 CPU erratum 的 workaround。
 
-## 3. 一个合格 KPTI 实现通常需要什么
+<h2 id="requirements">3. 一个合格 KPTI 实现通常需要什么</h2>
 
 不同架构实现细节差异很大，但共同问题基本相同：
 
@@ -106,7 +145,7 @@ KPTI 的核心不是“再检查一次权限”，而是让敏感内核映射在
 7. **全局映射处理**：global TLB 项不能把只应在 kernel view 中可见的翻译泄漏到 user view。
 8. **异常中的异常**：NMI、double fault、SError、栈溢出、调试异常和错误的返回路径尤其容易暴露切换时序错误。
 
-## 4. x86：Linux PTI 的参考实现
+<h2 id="architecture-x86">4. x86：Linux PTI 的参考实现</h2>
 
 ### 4.1 支持与控制方式
 
@@ -127,7 +166,7 @@ CONFIG_MITIGATION_PAGE_TABLE_ISOLATION=y
 - `nopti`：等价于 `pti=off`；
 - `mitigations=off`：会聚合关闭包括 PTI 在内的可选 CPU mitigation，前提是构建时没有彻底裁掉相关支持。
 
-`pti=on` 不是运行时热切换；这是 early boot 决策。是否实际启用可查看启动日志中的 `Kernel/User page tables isolation: enabled`，并结合 `/sys/devices/system/cpu/vulnerabilities/meltdown` 判断，不要只看 `.config`。
+`pti=on` 不是运行时热切换；这是 early boot 决策。Xen PV 会在强制参数判断之前关闭 PTI，因此源码语义比参数文档中的“unconditionally enable”多一个平台例外。是否实际启用可查看启动日志中的 `Kernel/User page tables isolation: enabled`，并结合 `/sys/devices/system/cpu/vulnerabilities/meltdown` 判断，不要只看 `.config`。这些控制项和基本数据结构由 `Documentation/arch/x86/pti.rst` 直接说明；参数拼写见 `Documentation/admin-guide/kernel-parameters.txt`。
 
 ### 4.2 两套页表如何组织
 
@@ -137,7 +176,7 @@ x86 为每个进程维护相邻的 kernel-mode PGD 和 user-mode PGD。启用 PT
 - **user page table**：完整用户映射，但内核部分只保留 entry text、`cpu_entry_area`、TSS scratch、IDT/异常入口所需区域等最小集合；
 - 用户地址部分通常在顶层同步后共享下层页表，因此只维护一组用户 PTE、A/D 位和锁。
 
-系统调用入口的典型顺序是：`swapgs`，暂存用户 RSP，执行 `SWITCH_TO_KERNEL_CR3`，然后才切到普通内核栈并进入 C。退出时先切到 trampoline stack，执行 `SWITCH_TO_USER_CR3_STACK`，再 `sysretq`/`iretq`。
+x86-64 系统调用入口的典型顺序是：`swapgs`，暂存用户 RSP，执行 `SWITCH_TO_KERNEL_CR3`，然后才切到普通内核栈并进入 C。退出时先切到 trampoline stack，执行 `SWITCH_TO_USER_CR3_STACK`，再 `sysretq`/`iretq`。这是 `arch/x86/entry/entry_64.S` 与 `arch/x86/entry/calling.h` 的路径；x86-32 PAE 使用 `arch/x86/entry/entry_32.S` 中独立的切换宏，不使用 `swapgs`、64 位 PCID 或 `sysretq`。
 
 ### 4.3 “kernel PT 的 userspace PGD 设置 NX”到底是什么
 
@@ -154,7 +193,7 @@ x86 为每个进程维护相邻的 kernel-mode PGD 和 user-mode PGD。启用 PT
 
 先给直接答案：**不是靠 CPL（当前是 ring 0 还是 ring 3）自动选择，也不是每次都先刷新 TLB；是 CR3 同时选择页表 root 和 PCID。** NX 是被选中那棵页表里的权限结果。
 
-在 x86-64 PTI 快路径中，每个 `mm` 的两张 PGD 连续放在一个 8 KiB 区域：
+启用 PTI 时，每个 `mm` 的两张顶层页表连续放在一个 8 KiB、8 KiB 对齐的区域；这个相邻布局也用于 x86-32 PAE（尽管 PAE 硬件实际只消费很小的 PGD）。下面的 PCID 优化则仅属于 x86-64 快路径：
 
 - kernel PGD 在前 4 KiB，物理地址 bit 12 为 0；
 - user PGD 在后 4 KiB，物理地址 bit 12 为 1；
@@ -184,7 +223,7 @@ TLB 会缓存最终翻译及权限，包括 NX。PCID 开启后，uPCID 下“�
 - uPCID 有待处理失效：清除 pending bit，并在写入 user CR3 时不设置 no-flush，使目标 uPCID 的非 global 条目失效；
 - CPU 不支持 PCID：两边实际只有 PCID 0，写 CR3 会冲刷非 global TLB，因此每次边界切换成本明显更高。
 
-修改用户页表时还必须同时考虑 kPCID 和 uPCID。Linux 可以立即失效 kernel PCID，并把 user PCID 标成 pending，延迟到下一次返回用户态再清；支持硬件广播失效的路径则会直接对 `kern_pcid(asid)` 和 `user_pcid(asid)` 都发失效操作。这是“页表切换”和“TLB shootdown”两个不同问题：前者选择当前视图，后者只在缓存内容已经过期时保证一致性。
+修改用户页表时还必须同时考虑 kPCID 和 uPCID。Linux 可以立即失效 kernel PCID，并把 user PCID 标成 pending，延迟到下一次返回用户态再清。`arch/x86/mm/tlb.c` 的 INVLPGB helper 虽然写有同时失效 `kern_pcid(asid)` 和 `user_pcid(asid)` 的逻辑，但本审核基线的 `pti_check_boottime_disable()` 会在启用 PTI 时清除 `X86_FEATURE_INVLPGB`，所以不能把它描述成当前 PTI 实际采用的广播快路径。这是“页表切换”和“TLB shootdown”两个不同问题：前者选择当前视图，后者只在缓存内容已经过期时保证一致性。
 
 最后，这也解释了 NX guard 如何发现漏切换：`SYSRET`/`IRET` 只负责返回低特权级，不会替 Linux 改 CR3。如果退出路径遗漏 `SWITCH_TO_USER_CR3`，CPU 会以 CPL3 继续使用 **kernel PGD + kPCID**；第一条用户指令在 kernel view 的顶层 NX 约束下 fault。这里触发错误的是错误 root 中的 NX，不是一次 TLB flush。
 
@@ -196,7 +235,9 @@ PTI 为同一个 `mm` 使用 kernel/user 两个 PCID 语义上下文，避免每
 
 主要成本包括：每进程额外顶层页表、入口共享区域、每次用户/内核边界的 CR3 操作、更多 TLB miss，以及 fork 和顶层页表更新时的同步工作。
 
-## 5. Arm：arm64 支持，ARM32 不支持
+当前基线还有两项容易被旧资料漏掉的兼容性约束：`arch/x86/mm/pti.c` 在 PTI 启用时会关闭 INVLPGB 和 FRED CPU feature。前者意味着 PTI 暂不走 INVLPGB 广播失效优化；后者意味着当前 PTI 入口仍走传统 IDT/syscall 路径，而不是 FRED 入口。
+
+<h2 id="architecture-arm64">5. Arm：arm64 支持，ARM32 不支持</h2>
 
 ### 5.1 配置、参数与启用策略
 
@@ -210,7 +251,7 @@ CONFIG_UNMAP_KERNEL_AT_EL0=y
 
 - `kpti=1`：强制开启；
 - `kpti=0`：强制关闭；
-- `mitigations=off`：通常关闭可选 mitigation，但 KASLR 可能仍要求 KPTI；官方参数表特意写成 `if nokaslr then kpti=0 [ARM64]`；
+- `mitigations=off`：通常关闭可选 mitigation，但 KASLR 可能仍要求 KPTI；官方参数表特意写成 `if nokaslr then kpti=0 [ARM64]`。实现 E0PD 的 Armv8.5 系统是重要例外，见 5.4；
 - 没有 x86 的 `pti=auto`/`nopti` 作为 arm64 KPTI 接口。
 
 默认策略不是所有 CPU 一律开启。内核综合 CPU MIDR safe list、`ID_AA64PFR0_EL1.CSV3`、erratum、KASLR 要求和 cmdline，形成 `ARM64_UNMAP_KERNEL_AT_EL0` capability。部分已声明不需要该 mitigation 的 CPU 默认关闭；用户仍可用 `kpti=1` 强制，但特定已知 erratum 可强制禁用。
@@ -225,7 +266,7 @@ arm64 的普通地址空间结构本来就与 x86 不同：
 - `TTBR1_EL1` 指向内核高地址页表 `swapper_pg_dir`；
 - 地址高位决定使用 TTBR0 还是 TTBR1。
 
-所以 arm64 KPTI 不需要为用户映射建立一个 x86 式“完整第二份 PGD”。它主要隔离的是 TTBR1：
+所以 arm64 KPTI 不需要为用户映射建立一个 x86 式“完整第二份 PGD”。它主要隔离的是 TTBR1；内核态下 TTBR0 是否可访问还受 PAN、软件 PAN 等机制控制，不能仅凭“TTBR0 仍装着当前进程页表”推出 EL1 可任意访问用户页：
 
 ```text
 EL0 运行：TTBR0 = 当前用户页表
@@ -240,7 +281,7 @@ EL0 运行：TTBR0 = 当前用户页表
           ERET
 ```
 
-`tramp_map_kernel`/`tramp_unmap_kernel` 通过调整 `TTBR1_EL1` 完成切换，并用 `USER_ASID_FLAG` 区分用户侧上下文。2025 年的 arm64 TLB 改造邮件仍明确指出：启用 KPTI 时 user/kernel 使用不同 ASID，按 ASID 的 VA invalidation 必须覆盖两者。这说明该机制仍是当前维护中的真实路径，而不是只剩历史代码。
+`tramp_map_kernel`/`tramp_unmap_kernel` 通过在 `tramp_pg_dir` 与 `swapper_pg_dir` 的物理地址间加减 `TRAMP_SWAPPER_OFFSET` 来调整 `TTBR1_EL1`，并用 `USER_ASID_FLAG` 区分用户侧上下文。当前 `arch/arm64/include/asm/tlbflush.h` 的 `__tlbi_user()` 仍会在启用 KPTI 时对带 `USER_ASID_FLAG` 的上下文补做失效；这比仅引用邮件更直接地证明该路径仍在主线中使用。
 
 arm64 还会把 kernel mapping 从 Global 改为 non-Global，使它们受 ASID 区分；仅 trampoline 这种始终映射的区域可以保留 global。KASLR 已创建 non-global mapping 时可省掉这次 stop-machine 重写。
 
@@ -262,7 +303,13 @@ EL0 用户代码运行
 
 PAN、PXN/UXN 和 AP 权限不能替代这个防错能力：PAN 主要限制 EL1 访问 EL0 页面；PXN/UXN 与 AP 约束映射自身的执行或访问权限，但 TTBR0 中合法的用户代码必须保持 EL0 可执行。它们不会因为 TTBR1 当前错误地指向 `swapper_pg_dir` 就禁止 TTBR0 用户代码执行。因此 arm64 KPTI 的正确性依赖所有返回 EL0 的路径都经过受控 trampoline，并正确恢复受限 TTBR1。
 
-## 6. RISC-V：主线现状与实现 KPTI 的关键问题
+### 5.4 E0PD 与 KPTI 的关系
+
+Armv8.5 的 E0PD 是一项容易遗漏、但不能与 KPTI 混为一谈的能力。启用 `CONFIG_ARM64_E0PD` 且硬件实现 E0PD 时，Linux 为 TTBR1 设置 `TCR_EL1.E0PD1`，使 EL0 经 TTBR1 发起的访问以常量时间失败。`arch/arm64/Kconfig` 将其描述为以更低开销提供与 KPTI 相似的 KASLR 收益；`arch/arm64/include/asm/mmu.h::kaslr_requires_kpti()` 因而允许具备 E0PD 的系统不再仅为 KASLR 强制开启 KPTI。
+
+E0PD 没有构造 `tramp_pg_dir`/`swapper_pg_dir` 两种 TTBR1 视图，也不执行异常边界的 TTBR1 切换，所以本文仍只把 `CONFIG_UNMAP_KERNEL_AT_EL0` 路径计为 Linux arm64 的 KPTI 实现。它是相关硬件缓解措施，不是 KPTI 的另一个名称。
+
+<h2 id="architecture-riscv">6. RISC-V：主线现状与实现 KPTI 的关键问题</h2>
 
 ### 6.1 当前主线明确不支持
 
@@ -344,8 +391,8 @@ RISC-V 页表项与 x86 有一个决定性差异：
 这会影响“漏切页表后立即杀死用户执行”的设计：
 
 - 若 kernel root 与 user root 共享可执行用户页的下层 PTE，错误地带着 kernel `satp` 执行 `sret` 后，U-mode 仍可能正常取指，同时完整内核映射也仍在当前 root 中；
-- 若想得到 x86 同等的 fail-stop 属性，可以不给 kernel root 映射可执行用户页、维护一套 leaf 级去 X 的副本，或在返回路径增加其他可验证约束；
-- 但去掉 kernel root 的用户执行映射会影响 page fault、ptrace、`access_process_vm()` 等路径对用户地址空间的处理，维护 leaf 副本又增加内存、A/D 位一致性和 TLB 成本。
+- 若想得到 x86 同等的 fail-stop 属性，可以让 kernel root 中的用户 leaf PTE 一律去掉 X、完全不映射用户叶项，或在返回路径增加其他可验证约束；
+- 单纯去掉 X 不妨碍内核按权限读取用户数据，但维护 leaf 级影子副本会触及 page fault、`mprotect()`、`munmap()`、fork、A/D 位回收、页表锁和 TLB shootdown 等所有会改变或检查用户 PTE 的路径；若选择完全不映射，还必须另行设计 uaccess、GUP、`ptrace`/`access_process_vm()` 等内核访问用户地址的机制。
 
 RISC-V 规范保证 S-mode 不能从 U=1 页取指，这保护的是 **内核执行期间**；一旦 `sret` 已把特权级降到 U-mode，这条保证不能检测“仍装着 kernel root”的错误。它不能替代 x86 的顶层 NX 防错技巧。
 
@@ -365,20 +412,20 @@ RISC-V 规范明确：写 `satp` 本身不提供页表内存更新的排序，�
 
 xv6-riscv 常被用来讲解 KPTI 风格的 trampoline：用户页表映射 trampoline 和 trapframe，进入后切到内核页表，退出时切回用户页表。它很好地展示了最小机制，但不能证明 Linux/RISC-V 已支持，也不能直接照搬：Linux 有 SMP ASID rollover、通用 MM、动态 vmalloc/module/BPF、复杂中断入口、KASLR、KVM、页表层级动态选择和远程 TLB shootdown，状态空间大得多。
 
-## 7. LoongArch：当前不支持，简单结论
+<h2 id="loongarch">7. LoongArch：当前不支持，简单结论</h2>
 
 截至核对日期，上游 `arch/loongarch/Kconfig` 没有 KPTI/page-table-isolation 选项，官方参数表也没有为 LoongArch 声明 `kpti=`、`pti=` 或 `nopti`。因此主线 LoongArch Linux 不能配置或通过 cmdline 启用 KPTI。
 
 LoongArch 已有 MMU、TLB 和用户/内核权限机制并不等价于 KPTI。若未来出现补丁，应以是否增加受限 user view、入口/退出页表切换、TLB tag 管理以及公开 Kconfig/cmdline 为判断依据，而不是仅看架构是否有 PGD 或 privilege level。
 
-## 8. 架构共同点与差异汇总
+<h2 id="comparison">8. 架构共同点与差异汇总</h2>
 
 | 维度 | x86 | arm64 | RISC-V 主线 | LoongArch 主线 |
 | --- | --- | --- | --- | --- |
 | 当前支持 | 是 | 是 | 否 | 否 |
 | 用户/内核普通页表基础 | 一个 CR3 root 同时覆盖低/高地址 | TTBR0 用户、TTBR1 内核天然分离 | 一个 `satp` root 同时含用户/内核映射 | 当前无 KPTI 路径 |
 | KPTI 切换对象 | CR3 指向的成对 PGD | TTBR1 的 `tramp_pg_dir`/`swapper_pg_dir` | 若实现需切 `satp.PPN` | 未实现 |
-| TLB tag | 每 `mm` 的 kernel/user PCID | user/kernel ASID | 当前每 `mm` 一个 ASID；KPTI 需成对设计 | 未实现 |
+| TLB tag | x86-64 每 `mm` 使用 kernel/user PCID；x86-32 无 PCID | user/kernel ASID | 当前每 `mm` 一个 ASID；KPTI 需成对设计 | 未实现 |
 | 最小双映射入口 | entry text、`cpu_entry_area` 等 | exception vector trampoline | 需要新增长期 user-visible trap trampoline | 未实现 |
 | 用户 lower page tables | kernel/user PGD 之间共享 | 用户映射独立位于 TTBR0 | 当前只有一套；未来是否共享是关键设计选择 | 未实现 |
 | kernel view 中 user PGD 的 NX guard | 有，顶层 NX 可继承 | 无同构需求 | 不能直接实现：非叶 PTE 无继承式 NX | 不适用 |
@@ -386,7 +433,28 @@ LoongArch 已有 MMU、TLB 和用户/内核权限机制并不等价于 KPTI。�
 | global mapping 处理 | 大部分 kernel global 需移除；少量共享区域可 global | kernel mappings 转 nG；trampoline 可 global | 若实现必须严格审计 PTE.G | 未实现 |
 | 无 tag 时成本 | CR3 通常冲刷 TLB | 依具体实现与 ASID | 每次 `satp` 切换可能需要 `SFENCE.VMA`，代价突出 | 未实现 |
 
-## 9. 实机检查建议
+<h3 id="fail-stop">8.1 返回用户态时漏切页表：x86 有硬件 fail-stop，arm64 与 RISC-V 没有同构机制</h3>
+
+这里的“防错”范围要说准确：x86 的顶层 NX guard 专门捕获 **内核返回用户态时遗漏 kernel -> user CR3 切换**，并不是对所有 KPTI bug 的完整证明。对于普通 present、user-accessible PGD entry，kernel page table 中的副本带 `_PAGE_NX`；如果 `SYSRET`/`IRET` 已降到 CPL3 而 CR3 仍指向 kernel PGD，第一条用户指令通常立即产生 instruction page fault。这个保护还依赖硬件 NX，并存在 EFI runtime 等源码明确列出的特殊映射例外。
+
+arm64 没有同构的 fail-stop。用户代码由 TTBR0 翻译，KPTI 隔离的主要对象则是 TTBR1。若错误返回路径在 `ERET` 前没有把 TTBR1 从 `swapper_pg_dir` 切回 `tramp_pg_dir`，TTBR0 中的用户代码仍可正常取指，完整 TTBR1 会静默遗留。PAN、PXN/UXN 和 AP 权限各自限制访问方向或映射权限，但不会因为 TTBR1 root 错误就禁止合法的 TTBR0 用户代码执行。
+
+E0PD 可以减轻这种错误的安全后果：设置 `TCR_EL1.E0PD1` 后，EL0 经 TTBR1 的访问会以常量时间失败，即使 TTBR1 错误地保留完整内核页表。但正常用户代码仍从 TTBR0 执行，因此 E0PD 不会像 x86 NX guard 那样让漏切换在第一条用户指令处立即暴露。
+
+RISC-V 如果采用最自然的“user/kernel 两个 root 共享用户 lower-level page tables”设计，也不会天然得到 x86 的保护。RISC-V 非叶 PTE 必须是 `V=1, R=W=X=0`，没有能够在 PGD/PUD/PMD 层向整个子树继承的 NX 位。若 `sret` 前遗漏 `satp` 切换，降到 U-mode 后共享用户 leaf PTE 的 `U=1, X=1` 仍然有效，用户代码可以继续执行，同时完整内核映射仍在当前 root 中。`SUM=0` 只限制 S-mode 对 U=1 页的数据访问，也不能检测已经进入 U-mode 后使用了错误 root。
+
+这并不表示 RISC-V 无法设计任何防错机制，而是没有 x86 那种低成本、可由页表层级权限自然实现的方案。可能的强化设计及代价如下：
+
+| RISC-V 方案 | 能否阻止错误 root 下的用户取指 | 主要代价或局限 |
+| --- | --- | --- |
+| kernel root 不映射用户叶项 | 能 | 需要重构 uaccess、GUP、`ptrace`/`access_process_vm()` 等依赖当前用户虚拟地址映射的路径 |
+| kernel root 维护一套 leaf 级去 X 的影子页表 | 能 | 必须同步 fault、`mprotect()`、`munmap()`、fork、A/D 位、页表锁和两个 ASID 的 TLB invalidation |
+| `sret` 前检查 `satp`、ASID 或软件 cookie | 能发现经过该检查点的错误 | 属于软件断言；若某条异常返回路径绕过检查，就没有“任意用户取指自动兜底”的性质 |
+| user/kernel root 直接共享可执行用户子树 | 不能 | 实现最简单，但漏切 `satp` 后可能静默带着完整 kernel root 运行用户代码 |
+
+因此严谨结论是：**x86 已有针对漏切 CR3 的硬件 fail-stop；arm64 没有同构机制；未来 RISC-V KPTI 若共享用户下层页表，也大概率不会天然具备该机制，但可以用更高成本的页表设计或软件断言补充防错。**
+
+<h2 id="verification">9. 实机检查建议</h2>
 
 ### x86
 
@@ -414,32 +482,50 @@ cat /proc/cmdline
 
 主线下预期找不到对应 config。某个厂商树若出现同名选项，仍需继续检查实际入口汇编和页表构造代码，确认它不是占位项或不同含义的功能。
 
-## 10. 资料来源与阅读顺序
+<h2 id="evidence">10. Linux 官方文档能直接证明什么</h2>
 
-以下上游源码链接固定到审核基线 `f2ec6312bf71`，避免 `master` 漂移导致行文与代码不再对应。
+这里需要区分“官方文档明确声明”和“根据当前源码得到的结论”。`Documentation/` 并没有为三个架构各写一篇对等的 KPTI 设计文档，尤其不能用“RISC-V 文档没提到”单独证明“不支持”。
+
+| 结论 | 官方 `Documentation/` 依据 | 还需核对的源码 |
+| --- | --- | --- |
+| x86 PTI 的目的、双页表、最小入口映射、顶层 NX guard、PCID/TLB 成本 | `Documentation/arch/x86/pti.rst` | `arch/x86/mm/pti.c`、`arch/x86/mm/pgtable.c`、`arch/x86/entry/entry_64.S`、`arch/x86/entry/entry_32.S`、`arch/x86/entry/calling.h` |
+| x86 的 `pti=`/`nopti` 和 arm64 的 `kpti=` 参数 | `Documentation/admin-guide/kernel-parameters.txt` | 两架构的 early-param 解析代码；文档把 x86 参数标成 X86-64，但 Kconfig 与 `entry_32.S` 还证明 x86-32 PAE 有实现 |
+| arm64 KPTI 的完整 TTBR1 trampoline/ASID 实现 | 参数表只说明 `kpti=0/1` 的行为；当前没有与 x86 `pti.rst` 对等的 arm64 KPTI 专文 | `arch/arm64/Kconfig`、`arch/arm64/kernel/cpufeature.c`、`arch/arm64/kernel/entry.S`、`arch/arm64/mm/mmu.c`、`arch/arm64/include/asm/tlbflush.h`；E0PD 的区别还见 `arch/arm64/include/asm/mmu.h` |
+| RISC-V 主线当前没有 KPTI | 参数表没有为 RISC-V 声明 `kpti=`/`pti=`，但“文档缺项”只能作为旁证 | 必须结合 `arch/riscv/Kconfig`、`arch/riscv/include/asm/pgalloc.h`、`arch/riscv/mm/context.c` 和 `arch/riscv/kernel/entry.S`：无配置，进程 PGD 复制内核半区，U/S trap 不切 `satp` |
+| RISC-V `satp`、ASID、`SFENCE.VMA`、PTE U/G 与非叶 PTE 规则 | 这些是 ISA 语义，不在 Linux `Documentation/` 中完整定义；应以 RISC-V 特权规范为准 | Linux 的 `arch/riscv/mm/context.c`、`arch/riscv/mm/tlbflush.c` 展示内核如何使用这些机制 |
+
+因此，对 x86 可以大量引用 `Documentation/arch/x86/pti.rst`；对 arm64 和 RISC-V，严谨写法应明确标注“由 Kconfig + 当前入口/页表源码交叉验证”，而不是声称某篇不存在的 Linux 架构文档已经完整说明。
+
+<h2 id="sources">11. 资料来源与阅读顺序</h2>
+
+以下上游源码链接固定到审核基线 `248951ddc14d`，避免 `master` 漂移导致行文与代码不再对应。
 
 1. Linux 官方 x86 PTI 文档：[Page Table Isolation](https://docs.kernel.org/arch/x86/pti.html)
-2. 当前 x86 配置定义：[arch/x86/Kconfig](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/Kconfig)
-3. 当前启动参数总表：[kernel-parameters.txt](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/Documentation/admin-guide/kernel-parameters.txt)
-4. x86 PTI 建表、NX guard 与最小映射：[arch/x86/mm/pti.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/mm/pti.c)
-5. x86 PGD/PMD 分配与双页表维护：[arch/x86/mm/pgtable.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/mm/pgtable.c)
-6. x86 syscall/异常 CR3 切换：[arch/x86/entry/entry_64.S](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/entry/entry_64.S)
-7. arm64 配置定义：[arch/arm64/Kconfig](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/arm64/Kconfig)
-8. arm64 CPU 判断与 `kpti=` 解析：[arch/arm64/kernel/cpufeature.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/arm64/kernel/cpufeature.c)
-9. arm64 trampoline 与 TTBR1 切换：[arch/arm64/kernel/entry.S](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/arm64/kernel/entry.S)
-10. arm64 nG 重写和 trampoline page table：[arch/arm64/mm/mmu.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/arm64/mm/mmu.c)
+2. 当前 x86 配置定义：[arch/x86/Kconfig](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/Kconfig)
+3. 当前启动参数总表：[kernel-parameters.txt](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/Documentation/admin-guide/kernel-parameters.txt)
+4. x86 PTI 建表、NX guard 与最小映射：[arch/x86/mm/pti.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/mm/pti.c)
+5. x86 PGD/PMD 分配与双页表维护：[arch/x86/mm/pgtable.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/mm/pgtable.c)
+6. x86 syscall/异常 CR3 切换：[arch/x86/entry/entry_64.S](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/entry/entry_64.S)
+   x86-32 PAE 的对应入口：[arch/x86/entry/entry_32.S](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/entry/entry_32.S)
+7. arm64 配置定义：[arch/arm64/Kconfig](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/Kconfig)
+8. arm64 CPU 判断与 `kpti=` 解析：[arch/arm64/kernel/cpufeature.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/kernel/cpufeature.c)
+9. arm64 trampoline 与 TTBR1 切换：[arch/arm64/kernel/entry.S](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/kernel/entry.S)
+10. arm64 nG 重写和 trampoline page table：[arch/arm64/mm/mmu.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/mm/mmu.c)
+    arm64 双 ASID 失效宏：[arch/arm64/include/asm/tlbflush.h](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/include/asm/tlbflush.h)
+    arm64 E0PD 与 KASLR/KPTI 决策：[arch/arm64/include/asm/mmu.h](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/arm64/include/asm/mmu.h)
 11. 2025 arm64 TLB/KPTI 维护邮件：[Implicitly invalidate user ASID based on TLBI operation](https://lists.infradead.org/pipermail/linux-arm-kernel/2025-July/1044849.html)
 12. 2025 arm64 KPTI helper 整理邮件：[Move KPTI helpers to mmu.c](https://lists.infradead.org/pipermail/linux-arm-kernel/2025-September/1061576.html)
-13. RISC-V 当前配置：[arch/riscv/Kconfig](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/riscv/Kconfig)
-14. RISC-V 当前进程 PGD 复制 kernel mapping：[arch/riscv/include/asm/pgalloc.h](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/riscv/include/asm/pgalloc.h)
-15. RISC-V 当前 `satp`/ASID 切换：[arch/riscv/mm/context.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/riscv/mm/context.c)
-16. RISC-V 当前 trap 入口/返回：[arch/riscv/kernel/entry.S](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/riscv/kernel/entry.S)
+13. RISC-V 当前配置：[arch/riscv/Kconfig](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/riscv/Kconfig)
+14. RISC-V 当前进程 PGD 复制 kernel mapping：[arch/riscv/include/asm/pgalloc.h](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/riscv/include/asm/pgalloc.h)
+15. RISC-V 当前 `satp`/ASID 切换：[arch/riscv/mm/context.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/riscv/mm/context.c)
+16. RISC-V 当前 trap 入口/返回：[arch/riscv/kernel/entry.S](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/riscv/kernel/entry.S)
+    RISC-V 本地、SBI RFENCE 与 IPI 失效路径：[arch/riscv/mm/tlbflush.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/riscv/mm/tlbflush.c)
 17. RISC-V 特权规范（ratified library）：[Supervisor-Level ISA](https://docs.riscv.org/reference/isa/priv/supervisor.html)
 18. RISC-V SBI 远程 TLB fence：[RFENCE Extension](https://docs.riscv.org/reference/sbi/ext/rfence.html)
-19. LoongArch 当前配置：[arch/loongarch/Kconfig](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/loongarch/Kconfig)
+19. LoongArch 当前配置：[arch/loongarch/Kconfig](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/loongarch/Kconfig)
 20. Meltdown 论文：[Meltdown: Reading Kernel Memory from User Space](https://meltdownattack.com/meltdown.pdf)
 21. KAISER 论文：[KASLR is Dead: Long Live KASLR](https://gruss.cc/files/kaiser.pdf)
-22. x86-64 CR3/PCID 切换宏：[arch/x86/entry/calling.h](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/entry/calling.h)
-23. x86 kPCID/uPCID 与延迟失效：[arch/x86/mm/tlb.c](https://github.com/torvalds/linux/blob/f2ec6312bf711369561bdcb22f8a63c0b118c479/arch/x86/mm/tlb.c)
+22. x86-64 CR3/PCID 切换宏：[arch/x86/entry/calling.h](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/entry/calling.h)
+23. x86 kPCID/uPCID 与延迟失效：[arch/x86/mm/tlb.c](https://github.com/torvalds/linux/blob/248951ddc14de84de3910f9b13f51491a8cd91df/arch/x86/mm/tlb.c)
 
 推荐先读 1、4、6、22、23 理解 x86 完整机制，再读 7 至 12 看 arm64 为什么只切 TTBR1，最后对照 14 至 18 分析 RISC-V 移植的入口、ASID 和非叶 PTE 限制。

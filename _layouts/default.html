@@ -24,7 +24,7 @@
     </header>
 
     <main class="site-main">
-        <div class="content-wrapper{% if page.article %} technical-article{% endif %}">
+        <div class="content-wrapper{% if page.article %} technical-article{% endif %}{% if page.page_class %} {{ page.page_class }}{% endif %}">
             {{ content }}
         </div>
     </main>
