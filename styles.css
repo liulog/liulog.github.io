@@ -262,6 +262,100 @@ a:hover {
     font-weight: 600;
 }
 
+/* ================================
+   Linker-address article
+   ================================ */
+.linker-article {
+    max-width: 1040px;
+}
+
+.linker-article > h1 {
+    margin-bottom: var(--space-lg);
+    padding: clamp(2rem, 6vw, 4rem);
+    border-radius: var(--radius-lg);
+    background:
+        radial-gradient(circle at 88% 18%, rgba(251, 191, 36, 0.22), transparent 28%),
+        linear-gradient(135deg, #111827, #1e293b 58%, #334155);
+    box-shadow: var(--shadow-lg);
+    color: #f8fafc;
+}
+
+.linker-article > h1::before {
+    content: "ELF MEMORY MAP · QUICK GUIDE";
+    display: block;
+    margin-bottom: 0.75rem;
+    color: #fbbf24;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+}
+
+.linker-article h2,
+.linker-article h3 {
+    scroll-margin-top: 6rem;
+}
+
+.address-rule {
+    display: grid;
+    gap: 0.35rem;
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg);
+    border: 1px solid #f59e0b;
+    border-left-width: 5px;
+    border-radius: var(--radius-lg);
+    background: #fffbeb;
+}
+
+.address-rule strong {
+    color: #92400e;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+}
+
+.address-rule span {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+}
+
+.callout {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg);
+    border: 1px solid #cbd5e1;
+    border-left-width: 5px;
+    border-radius: var(--radius-lg);
+    background: #f8fafc;
+}
+
+.callout strong {
+    display: block;
+    margin-bottom: var(--space-sm);
+}
+
+.callout p:last-child {
+    margin-bottom: 0;
+}
+
+.callout--danger {
+    border-left-color: #dc2626;
+    background: #fef2f2;
+}
+
+.callout--key {
+    border-left-color: #2563eb;
+    background: #eff6ff;
+}
+
+.callout--warn {
+    border-left-color: #d97706;
+    background: #fffbeb;
+}
+
+@media (max-width: 640px) {
+    .linker-article > h1 {
+        padding: 1.5rem;
+    }
+}
+
 .audit-note {
     display: grid;
     grid-template-columns: auto 1fr;

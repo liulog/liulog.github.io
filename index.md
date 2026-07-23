@@ -61,6 +61,10 @@ title: 首页
                 🧭 <a href="/mmu-page-table-base.html">MMU 页表基址寄存器可视化：x86 CR3 · ARM64 TTBR0/1 · RISC-V satp</a>
                 <small>（64-bit 位图 / 字段含义 / Linux 进程切换 / KPTI / sfence.vma 流程）</small>
             </li>
+            <li class="skill-item">
+                🧷 <a href="/linker-script-addresses.html">链接器脚本地址速通：VMA、LMA 与 AT()</a>
+                <small>（Asterinas RISC-V 高半区实例 / ELF Segment / readelf 排查）</small>
+            </li>
         </ul>
         <p><small>🤖 部分内容由 AI 辅助整理，技术结论请结合文内源码链接交叉验证。</small></p>
     </div>
