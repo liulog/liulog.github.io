@@ -16,7 +16,16 @@ title: 联系方式
             <div>
                 <div class="contact-label">电子邮件</div>
                 <div class="contact-value">
-                    <a href="mailto:your@email.com">your@email.com</a>
+                    <a href="mailto:liujingyu24s@ict.ac.cn">liujingyu24s@ict.ac.cn</a>
+                </div>
+            </div>
+        </li>
+        <li class="contact-item">
+            <div class="contact-icon">📧</div>
+            <div>
+                <div class="contact-label">电子邮件</div>
+                <div class="contact-value">
+                    <a href="mailto:liujinhy@gmail.com">liujinhy@gmail.com</a> · <a href="mailto:2537738252@qq.com">2537738252@qq.com</a>
                 </div>
             </div>
         </li>
@@ -25,7 +34,7 @@ title: 联系方式
             <div>
                 <div class="contact-label">GitHub</div>
                 <div class="contact-value">
-                    <a href="https://github.com" target="_blank">github.com/yourusername</a>
+                    <a href="https://github.com/liulog" target="_blank">github.com/liulog</a>
                 </div>
             </div>
         </li>

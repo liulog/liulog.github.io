@@ -4,32 +4,40 @@ title: 首页
 ---
 
 <div class="hero">
-    <h1 class="hero-title">你好，欢迎</h1>
-    <p class="hero-subtitle">记录生活，分享技术</p>
+    <h1 class="hero-title">你好，我是 liulog</h1>
+    <p class="hero-subtitle">系统编程爱好者 · RISC-V 与虚拟化学习者</p>
     <div class="hero-tags">
-        <span class="tag">开发者</span>
-        <span class="tag">创作者</span>
+        <span class="tag">Rust Hypervisor</span>
+        <span class="tag">RISC-V</span>
+        <span class="tag">AI Inference</span>
     </div>
 </div>
 
 <div class="card-grid mt-xl">
     <div class="card">
         <h3 class="section-title">📝 最新动态</h3>
-        <p>持续学习，不断探索。欢迎关注我的技术之旅。</p>
+        <p>正在探索 RISC-V、虚拟化、裸机开发与 AI 推理系统；这里记录系统软件学习中的问题、实验与思考。</p>
     </div>
 
     <div class="card">
         <h3 class="section-title">🛠 技术栈</h3>
         <ul class="skill-list">
-            <li class="skill-item">待补充</li>
-            <li class="skill-item">待补充</li>
-            <li class="skill-item">待补充</li>
+            <li class="skill-item">C</li>
+            <li class="skill-item">Rust</li>
+            <li class="skill-item">Python</li>
+            <li class="skill-item">RISC-V</li>
+            <li class="skill-item">QEMU</li>
+            <li class="skill-item">Git</li>
         </ul>
     </div>
 
     <div class="card">
         <h3 class="section-title">🎯 项目</h3>
-        <p>待补充项目经历与开源贡献。</p>
+        <ul class="skill-list">
+            <li class="skill-item"><a href="https://github.com/syswonder/hvisor" target="_blank">hvisor</a></li>
+            <li class="skill-item"><a href="https://github.com/liulog/llaisys" target="_blank">llaisys</a></li>
+            <li class="skill-item"><a href="https://github.com/syswonder/hvboot" target="_blank">hvboot</a></li>
+        </ul>
     </div>
 </div>
 
