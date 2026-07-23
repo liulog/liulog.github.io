@@ -5,10 +5,11 @@ title: 首页
 
 <div class="hero">
     <h1 class="hero-title">你好，我是 liulog</h1>
-    <p class="hero-subtitle">系统编程爱好者 · RISC-V 与虚拟化学习者</p>
+    <p class="hero-subtitle">系统编程爱好者 · RISC-V、虚拟化与 Kernel Security 学习者</p>
     <div class="hero-tags">
         <span class="tag">Rust Hypervisor</span>
         <span class="tag">RISC-V</span>
+        <span class="tag">Kernel Security</span>
         <span class="tag">AI Inference</span>
     </div>
 </div>
@@ -16,7 +17,7 @@ title: 首页
 <div class="card-grid mt-xl">
     <div class="card">
         <h3 class="section-title">📝 最新动态</h3>
-        <p>正在探索 RISC-V、虚拟化、裸机开发与 AI 推理系统；这里记录系统软件学习中的问题、实验与思考。</p>
+        <p>正在探索 RISC-V、虚拟化、裸机开发、Kernel Security 与 AI 推理系统；这里记录系统软件学习中的问题、实验与思考。</p>
     </div>
 
     <div class="card">

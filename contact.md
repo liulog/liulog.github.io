@@ -5,7 +5,7 @@ title: 联系方式
 
 <div class="hero" style="padding-bottom: var(--space-xl);">
     <h1 class="hero-title" style="font-size: 2rem;">联系方式</h1>
-    <p class="hero-subtitle">期待与你的交流</p>
+    <p class="hero-subtitle">欢迎交流 RISC-V、虚拟化与 Kernel Security</p>
 </div>
 
 <div class="card">
@@ -39,4 +39,9 @@ title: 联系方式
             </div>
         </li>
     </ul>
+</div>
+
+<div class="card">
+    <h3 class="section-title">🔐 交流方向</h3>
+    <p>尤其欢迎围绕 RISC-V、Hypervisor、内核安全、内存隔离和虚拟化安全的讨论与合作交流。</p>
 </div>
