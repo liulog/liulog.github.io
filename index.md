@@ -67,6 +67,10 @@ title: 首页
                 <small>（x86 / arm64 / RISC-V / LoongArch，含主线源码审核与切换图）</small>
             </li>
             <li class="skill-item">
+                🎲 <a href="/linux-kaslr.html">Linux KASLR：内核地址空间布局随机化</a>
+                <small>（启动重定位 / 物理与虚拟随机化 / 跨重启实验 / KPTI 对比）</small>
+            </li>
+            <li class="skill-item">
                 🧭 <a href="/mmu-page-table-base.html">MMU 页表基址寄存器可视化：x86 CR3 · ARM64 TTBR0/1 · RISC-V satp</a>
                 <small>（64-bit 位图 / 字段含义 / Linux 进程切换 / KPTI / sfence.vma 流程）</small>
             </li>
