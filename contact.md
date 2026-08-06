@@ -5,7 +5,7 @@ title: 联系方式
 
 <div class="hero" style="padding-bottom: var(--space-xl);">
     <h1 class="hero-title" style="font-size: 2rem;">联系方式</h1>
-    <p class="hero-subtitle">欢迎交流 RISC-V、虚拟化与 Kernel Security</p>
+    <p class="hero-subtitle">欢迎交流 RISC-V、虚拟化、推理系统与 System Security</p>
 </div>
 
 <div class="card">
@@ -38,10 +38,19 @@ title: 联系方式
                 </div>
             </div>
         </li>
+        <li class="contact-item">
+            <div class="contact-icon">📺</div>
+            <div>
+                <div class="contact-label">Bilibili</div>
+                <div class="contact-value">
+                    <a href="https://space.bilibili.com/1078937143" target="_blank">space.bilibili.com/1078937143</a>
+                </div>
+            </div>
+        </li>
     </ul>
 </div>
 
 <div class="card">
     <h3 class="section-title">🔐 交流方向</h3>
-    <p>尤其欢迎围绕 RISC-V、Hypervisor、内核安全、内存隔离和虚拟化安全的讨论与合作交流。</p>
+    <p>尤其欢迎围绕 RISC-V、Hypervisor、内核安全、内存隔离、虚拟化安全与 AI 推理系统的讨论与合作交流。</p>
 </div>
