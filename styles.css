@@ -2,18 +2,21 @@
    Base Variables & Reset
    ================================ */
 :root {
-    --color-bg: #fafaf9;
-    --color-bg-secondary: #f5f5f4;
-    --color-text: #292524;
-    --color-text-secondary: #78716c;
-    --color-text-muted: #a8a29e;
-    --color-accent: #1d4ed8;
-    --color-accent-light: #3b82f6;
-    --color-border: #e7e5e4;
-    --color-card-bg: #ffffff;
+    --color-bg: #f4f7f8;
+    --color-bg-secondary: #e9eef1;
+    --color-text: #14212b;
+    --color-text-secondary: #5b6b76;
+    --color-text-muted: #8a97a1;
+    --color-accent: #0f766e;
+    --color-accent-light: #14b8a6;
+    --color-accent-soft: rgba(15, 118, 110, 0.12);
+    --color-border: #d5dee4;
+    --color-card-bg: rgba(255, 255, 255, 0.82);
+    --color-header-bg: rgba(255, 255, 255, 0.72);
 
     --font-serif: 'Noto Serif SC', 'Songti SC', serif;
     --font-sans: 'Noto Sans SC', 'PingFang SC', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
@@ -23,13 +26,15 @@
     --space-2xl: 3rem;
     --space-3xl: 4rem;
 
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+    --shadow-sm: 0 1px 2px rgba(20, 33, 43, 0.04);
+    --shadow-md: 0 8px 24px -12px rgba(20, 33, 43, 0.14);
+    --shadow-lg: 0 18px 40px -18px rgba(20, 33, 43, 0.2);
+
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 *, *::before, *::after {
@@ -44,6 +49,7 @@ html {
 }
 
 body {
+    position: relative;
     font-family: var(--font-sans);
     font-weight: 400;
     line-height: 1.8;
@@ -54,6 +60,33 @@ body {
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    isolation: isolate;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+        radial-gradient(ellipse 70% 50% at 12% -10%, rgba(20, 184, 166, 0.16), transparent 55%),
+        radial-gradient(ellipse 55% 45% at 92% 8%, rgba(56, 189, 248, 0.12), transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 100%, rgba(15, 118, 110, 0.08), transparent 55%),
+        linear-gradient(180deg, #f7fafb 0%, #eef3f5 100%);
+    pointer-events: none;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+        linear-gradient(rgba(20, 33, 43, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20, 33, 43, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 20%, transparent 75%);
+    pointer-events: none;
 }
 
 /* ================================
@@ -89,17 +122,19 @@ a:hover {
    Header
    ================================ */
 .site-header {
-    background: var(--color-card-bg);
-    border-bottom: 1px solid var(--color-border);
+    background: var(--color-header-bg);
+    border-bottom: 1px solid rgba(213, 222, 228, 0.8);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
     position: sticky;
     top: 0;
     z-index: 100;
 }
 
 .header-inner {
-    max-width: 900px;
+    max-width: 920px;
     margin: 0 auto;
-    padding: var(--space-md) var(--space-lg);
+    padding: 0.9rem var(--space-lg);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -112,11 +147,18 @@ a:hover {
 }
 
 .logo-text {
-    font-family: var(--font-serif);
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    font-weight: 600;
     color: var(--color-text);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.04em;
+}
+
+.logo-text::before {
+    content: '~/';
+    color: var(--color-accent);
+    margin-right: 0.15em;
+    font-weight: 500;
 }
 
 .site-logo:hover .logo-text {
@@ -129,7 +171,7 @@ a:hover {
 }
 
 .nav-link {
-    font-size: 0.9375rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: var(--color-text-secondary);
     padding: var(--space-xs) 0;
@@ -143,8 +185,9 @@ a:hover {
     left: 0;
     width: 0;
     height: 2px;
-    background: var(--color-accent);
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, var(--color-accent), var(--color-accent-light));
+    border-radius: 2px;
+    transition: width 0.3s var(--ease-out);
 }
 
 .nav-link:hover {
@@ -164,8 +207,20 @@ a:hover {
 }
 
 .content-wrapper {
-    max-width: 900px;
+    max-width: 920px;
     margin: 0 auto;
+    animation: rise-in 0.55s var(--ease-out) both;
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ================================
@@ -981,23 +1036,31 @@ a:hover {
    ================================ */
 .card {
     background: var(--color-card-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: var(--radius-lg);
     padding: var(--space-xl);
     box-shadow: var(--shadow-sm);
-    border: 1px solid var(--color-border);
+    border: 1px solid rgba(213, 222, 228, 0.9);
     margin-bottom: var(--space-lg);
-    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    transition: box-shadow 0.35s var(--ease-out), transform 0.35s var(--ease-out), border-color 0.35s ease;
 }
 
 .card:hover {
     box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    border-color: rgba(15, 118, 110, 0.28);
 }
 
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: var(--space-lg);
+}
+
+.card-grid > .card {
+    margin-bottom: 0;
+    height: 100%;
 }
 
 .section-title {
@@ -1015,8 +1078,8 @@ a:hover {
     content: '';
     display: block;
     width: 3px;
-    height: 1.2em;
-    background: var(--color-accent);
+    height: 1.15em;
+    background: linear-gradient(180deg, var(--color-accent), var(--color-accent-light));
     border-radius: 2px;
 }
 
@@ -1024,28 +1087,58 @@ a:hover {
    Hero Section
    ================================ */
 .hero {
+    position: relative;
     text-align: center;
-    padding: var(--space-3xl) 0;
+    padding: clamp(2.5rem, 6vw, 4.5rem) 1rem;
+    margin-bottom: var(--space-lg);
+    border: 1px solid rgba(213, 222, 228, 0.85);
+    border-radius: calc(var(--radius-lg) + 4px);
+    background:
+        radial-gradient(circle at 78% 18%, rgba(20, 184, 166, 0.14), transparent 34%),
+        radial-gradient(circle at 18% 82%, rgba(56, 189, 248, 0.1), transparent 36%),
+        rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: auto -10% -40% auto;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(15, 118, 110, 0.12), transparent 68%);
+    pointer-events: none;
 }
 
 .hero-title {
-    font-size: 2.75rem;
+    position: relative;
+    font-size: clamp(2rem, 5vw, 2.85rem);
     font-weight: 700;
     margin-bottom: var(--space-md);
-    background: linear-gradient(135deg, var(--color-text) 0%, var(--color-accent) 100%);
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, var(--color-text) 15%, var(--color-accent) 85%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 
 .hero-subtitle {
-    font-size: 1.25rem;
+    position: relative;
+    font-size: 1.15rem;
     color: var(--color-text-secondary);
     margin-bottom: var(--space-xl);
     font-weight: 300;
+    max-width: 36rem;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .hero-tags {
+    position: relative;
     display: flex;
     justify-content: center;
     gap: var(--space-sm);
@@ -1053,12 +1146,15 @@ a:hover {
 }
 
 .tag {
-    background: var(--color-bg-secondary);
-    color: var(--color-text-secondary);
-    padding: var(--space-xs) var(--space-md);
-    border-radius: 999px;
-    font-size: 0.875rem;
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    border: 1px solid rgba(15, 118, 110, 0.18);
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
     font-weight: 500;
+    letter-spacing: 0.02em;
 }
 
 /* ================================
@@ -1082,7 +1178,7 @@ a:hover {
 }
 
 .skill-item {
-    background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg) 100%);
+    background: rgba(255, 255, 255, 0.72);
     border: 1px solid var(--color-border);
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-md);
@@ -1091,11 +1187,22 @@ a:hover {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
+    transition: border-color 0.25s ease, transform 0.25s var(--ease-out), background 0.25s ease;
+}
+
+.skill-item:hover {
+    border-color: rgba(15, 118, 110, 0.35);
+    background: #fff;
+    transform: translateY(-1px);
 }
 
 .skill-item::before {
     content: '▹';
     color: var(--color-accent);
+}
+
+.skill-item a {
+    font-weight: 500;
 }
 
 /* ================================
@@ -1113,12 +1220,16 @@ a:hover {
     top: 8px;
     bottom: 8px;
     width: 2px;
-    background: var(--color-border);
+    background: linear-gradient(180deg, var(--color-accent), rgba(213, 222, 228, 0.4));
 }
 
 .timeline-item {
     position: relative;
     margin-bottom: var(--space-xl);
+}
+
+.timeline-item:last-child {
+    margin-bottom: 0;
 }
 
 .timeline-item::before {
@@ -1128,15 +1239,19 @@ a:hover {
     top: 8px;
     width: 12px;
     height: 12px;
-    background: var(--color-card-bg);
+    background: #fff;
     border: 2px solid var(--color-accent);
     border-radius: 50%;
+    box-shadow: 0 0 0 4px var(--color-accent-soft);
 }
 
 .timeline-date {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-accent);
     margin-bottom: var(--space-xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .timeline-title {
@@ -1160,8 +1275,19 @@ a:hover {
     display: flex;
     align-items: center;
     gap: var(--space-md);
-    padding: var(--space-md) 0;
-    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-md);
+    margin: 0 calc(-1 * var(--space-md));
+    border-radius: var(--radius-md);
+    border-bottom: 1px solid transparent;
+    transition: background 0.25s ease;
+}
+
+.contact-item + .contact-item {
+    border-top: 1px solid var(--color-border);
+}
+
+.contact-item:hover {
+    background: var(--color-accent-soft);
 }
 
 .contact-item:last-child {
@@ -1169,14 +1295,16 @@ a:hover {
 }
 
 .contact-icon {
-    width: 40px;
-    height: 40px;
-    background: var(--color-bg-secondary);
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    background: linear-gradient(145deg, #fff, var(--color-bg-secondary));
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
 }
 
 .contact-label {
@@ -1187,20 +1315,23 @@ a:hover {
 .contact-value {
     color: var(--color-text-secondary);
     font-size: 0.9375rem;
+    font-family: var(--font-mono);
 }
 
 /* ================================
    Footer
    ================================ */
 .site-footer {
-    background: var(--color-card-bg);
-    border-top: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(213, 222, 228, 0.9);
     padding: var(--space-xl) var(--space-lg);
     margin-top: auto;
 }
 
 .footer-inner {
-    max-width: 900px;
+    max-width: 920px;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
@@ -1233,6 +1364,18 @@ a:hover {
 
 .footer-divider {
     color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .content-wrapper {
+        animation: none;
+    }
+
+    .card,
+    .skill-item,
+    .nav-link::after {
+        transition: none;
+    }
 }
 
 /* ================================
