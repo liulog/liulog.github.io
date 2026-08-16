@@ -78,6 +78,10 @@ title: 首页
                 🧷 <a href="/linker-script-addresses.html">链接器脚本地址速通：VMA、LMA 与 AT()</a>
                 <small>（Asterinas RISC-V 高半区实例 / ELF Segment / readelf 排查）</small>
             </li>
+            <li class="skill-item">
+                📦 <a href="/npm-nvm-nodejs.html">Node.js、npm 与 nvm：运行时、包管理器与版本管理器</a>
+                <small>（分层关系 / PATH 与全局前缀 / 为什么 Agent CLI 走 npm）</small>
+            </li>
         </ul>
         <p><small>🤖 部分内容由 AI 辅助整理，技术结论请结合文内源码链接交叉验证。</small></p>
     </div>
