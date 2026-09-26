@@ -26,6 +26,24 @@
     library.querySelector('.library-tools').hidden = false;
   }
 
+  document.querySelectorAll('[data-soc-explorer]').forEach(explorer => {
+    const controls = explorer.querySelector('.soc-controls');
+    const buttons = [...controls.querySelectorAll('[data-soc-view]')];
+    const routes = [...explorer.querySelectorAll('[data-routes]')];
+    const descriptions = [...explorer.querySelectorAll('[data-soc-description]')];
+    buttons.forEach(button => button.addEventListener('click', () => {
+      const view = button.dataset.socView;
+      buttons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      routes.forEach(route => {
+        route.classList.toggle('is-route-active', view !== 'all' && route.dataset.routes.split(' ').includes(view));
+      });
+      descriptions.forEach(description => {
+        description.hidden = description.dataset.socDescription !== view;
+      });
+    }));
+    controls.hidden = false;
+  });
+
   const toc = document.querySelector('#reading-toc');
   if (toc) {
     const headings = [...document.querySelectorAll('.technical-article h2[id]')];

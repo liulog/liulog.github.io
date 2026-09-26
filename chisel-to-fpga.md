@@ -11,11 +11,12 @@ sections:
   - { id: chisel, title: "03 · Chisel 怎样生成 HDL" }
   - { id: implementation, title: "04 · 综合与布局布线" }
   - { id: anatomy, title: "05 · FPGA 内部组成" }
-  - { id: programming, title: "06 · 谁来烧录，烧到哪里" }
-  - { id: tools, title: "07 · 工具与产物" }
-  - { id: practice, title: "08 · 第一次点亮 LED" }
-  - { id: faq, title: "09 · 常见问题" }
-  - { id: sources, title: "10 · 来源与延伸阅读" }
+  - { id: ps-pl, title: "06 · PS / PL 与组件关系" }
+  - { id: programming, title: "07 · 谁来烧录，烧到哪里" }
+  - { id: tools, title: "08 · 工具与产物" }
+  - { id: practice, title: "09 · 第一次点亮 LED" }
+  - { id: faq, title: "10 · 常见问题" }
+  - { id: sources, title: "11 · 来源与延伸阅读" }
 ---
 
 <header class="guide-hero">
@@ -238,7 +239,133 @@ FPGA 内部已有很多种资源，常见的有：
 
 普通 Artix-7 FPGA 不自带 Arm 处理器；可以用逻辑实现 MicroBlaze 或 RISC-V 等软核 CPU。Zynq-7000 则把 Arm 处理系统（PS）与可编程逻辑（PL）集成在一颗芯片中，启动时还涉及处理器侧的启动软件和 PL 配置路径。不能把普通 FPGA 的 SPI 启动步骤原样当成所有 SoC 的启动方案。[AMD Zynq-7000 概览](https://www.amd.com/en/products/adaptive-socs-and-fpgas/soc/zynq-7000.html)
 
-<h2 id="programming">06 · “烧录”到底烧到了哪里？</h2>
+<h2 id="ps-pl">06 · PS、PL 与 FPGA，到底是什么关系？</h2>
+
+**在 Zynq 这类 SoC 的语境里，你说的“FPGA 部分”通常就是 PL；但 FPGA 这个词也可以指普通的整颗 FPGA 器件，并不总是特指某颗 SoC 的子区域。** PS（Processing System）是硬核处理系统，PL（Programmable Logic）是 FPGA 可编程逻辑，两者在 Zynq 中集成于同一颗芯片。PS 也不只是 CPU：它还包含缓存、片内存储、存储控制器与外设。[AMD UG585：Zynq-7000 架构概览](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/Overview)
+
+### 先分清三层边界：开发板、芯片、芯片内的区域
+
+<div class="device-compare" aria-label="普通 FPGA 与 Zynq SoC 的组成对照">
+  <section class="device-card">
+    <p class="eyebrow">普通 FPGA / ARTIX-7 示例</p>
+    <div class="device-outline"><strong>一颗 FPGA 芯片</strong><div class="device-region device-region--pl">FPGA 可编程逻辑与硬件资源<small>LUT · FF · BRAM · DSP · 互连 · I/O</small></div><p>配置、时钟等专用电路也在芯片内；没有 Zynq 式硬核 PS。</p></div>
+    <p class="device-board-label">板上另有：电源、晶振、Flash、下载接口等</p>
+  </section>
+  <section class="device-card">
+    <p class="eyebrow">带 FPGA 逻辑的 SoC / ZYNQ-7000 示例</p>
+    <div class="device-outline"><strong>一颗 Zynq SoC 芯片</strong><div class="device-region device-region--ps">PS · 硬核处理系统<small>Arm CPU · Cache · OCM · DDR 控制器 · 外设</small></div><div class="device-bridge">↕ 片内接口：AXI、时钟、中断、配置等</div><div class="device-region device-region--pl">PL · FPGA 可编程逻辑<small>LUT · FF · BRAM · DSP · 互连 · I/O</small></div></div>
+    <p class="device-board-label">板上另有：DDR 芯片、启动存储、电源、接口等</p>
+  </section>
+</div>
+
+因此，说“在 FPGA 上做一个加速器”，在 Zynq 工程里通常指**在 PL 中实现加速电路，再由 PS 上的软件控制它**。说“这是一块 FPGA 板”，口语上可能指搭载普通 FPGA 的板，也可能指搭载 Zynq 的板；选工具和理解启动流程时，必须落实到具体芯片型号。上图是概念对照，外设配置取决于实际开发板。[Artix-7 所属的 7 系列概览](https://docs.amd.com/api/khub/documents/2LByHkO~nSZXcei2D55fTg/content)、[Zynq-7000 数据手册 DS190](https://docs.amd.com/api/khub/documents/juMnxca71Tf2gfjmNyjM8A/content)
+
+### 一张关系图：PS 如何使用 PL 里的加速器？
+
+下面选择一个 **Zynq-7000 + PL 加速器 + 板外 DDR** 的教学设计。按钮高亮不同连接；所有连线的用途也在图中标出。图中箭头表示请求、通知或配置的主要方向，AXI 读取的数据会沿相反方向返回。
+
+<figure class="soc-explorer" data-soc-explorer aria-labelledby="soc-map-title">
+  <div class="soc-heading"><div><span class="eyebrow">INSIDE A ZYNQ-7000</span><strong id="soc-map-title">一颗芯片，两类计算资源</strong></div><span class="soc-legend"><i class="legend-ps"></i>PS 硬核系统 <i class="legend-pl"></i>PL 可编程逻辑</span></div>
+  <div class="soc-controls" role="group" aria-label="选择要查看的 PS 与 PL 连接" hidden>
+    <button type="button" data-soc-view="all" aria-pressed="true">全部关系</button>
+    <button type="button" data-soc-view="control" aria-pressed="false">① CPU 发命令</button>
+    <button type="button" data-soc-view="data" aria-pressed="false">② DMA 搬数据</button>
+    <button type="button" data-soc-view="irq" aria-pressed="false">③ 完成后中断</button>
+    <button type="button" data-soc-view="config" aria-pressed="false">④ 配置 PL</button>
+  </div>
+  <div class="soc-die">
+    <div class="soc-boundary-label">同一颗 Zynq-7000 芯片内部 · 关系示意，不是版图</div>
+    <div class="soc-columns">
+      <section class="soc-domain soc-domain--ps" aria-label="PS 硬核处理系统">
+        <h4>PS <small>出厂已有的硬件</small></h4>
+        <div class="soc-node" data-routes="control data irq config"><strong>Arm Cortex-A9 + L1 / L2 Cache</strong><small>运行裸机程序或操作系统，访问控制寄存器</small></div>
+        <div class="soc-node" data-routes="data"><strong>DDR 控制器 / OCM</strong><small>DDR 控制器接板外内存；OCM 是片内 SRAM</small></div>
+        <div class="soc-node" data-routes="irq"><strong>GIC → CPU</strong><small>中断控制器将通知交给 CPU 处理</small></div>
+        <div class="soc-node" data-routes="config"><strong>BootROM / DevC</strong><small>启动代码与设备配置控制；软件驱动 PCAP</small></div>
+        <div class="soc-node"><strong>PS 时钟与复位控制</strong><small>按工程配置，向 PL 提供时钟与控制信号</small></div>
+        <div class="soc-node"><strong>UART · SPI · I²C · GPIO 等</strong><small>硬核外设，可经 MIO 或受支持的 EMIO 路径连接</small></div>
+      </section>
+      <div class="soc-lanes" aria-label="PS 和 PL 之间的连接">
+        <span class="soc-lane-heading">片内连接</span>
+        <div class="soc-lane" data-routes="control"><b>① PS → PL</b><span>M_AXI_GP0</span><span>PS 发起寄存器读写</span><small>PL 侧可适配 AXI4-Lite</small></div>
+        <div class="soc-lane" data-routes="data"><b>② PS ← PL</b><span>S_AXI_HP0</span><span>PL 主设备发起内存读写</span><small>访问 PS 侧 DDR / OCM</small></div>
+        <div class="soc-lane" data-routes="irq"><b>③ PS ← PL</b><span>IRQ_F2P</span><span>PL 通知 PS</span><small>进入中断控制器 GIC</small></div>
+        <div class="soc-lane" data-routes="config"><b>④ PS → PL</b><span>DevC / PCAP</span><span>传输 PL 配置比特流</span><small>经专用配置电路接收</small></div>
+        <div class="soc-lane"><b>PS → PL</b><span>FCLK / 复位控制</span><small>按设计连接和同步复位</small></div>
+        <div class="soc-lane"><b>PS ↔ PL</b><span>EMIO（受支持外设）</span><small>信号也可走 PS MIO 引脚</small></div>
+      </div>
+      <section class="soc-domain soc-domain--pl" aria-label="PL 可编程逻辑">
+        <h4>PL <small>bitstream 定义的电路</small></h4>
+        <div class="soc-node" data-routes="control"><strong>AXI 互连 + 控制寄存器</strong><small>保存地址、长度、启动位；供 CPU 读写</small></div>
+        <div class="soc-node" data-routes="data"><strong>DMA ↔ 加速器</strong><small>PL 主设备通过 HP 访问内存；用户电路组合 BRAM / DSP / LUT / FF</small></div>
+        <div class="soc-node" data-routes="irq"><strong>加速器 / DMA 完成信号</strong><small>产生中断通知；也可把状态存入寄存器供轮询</small></div>
+        <div class="soc-node" data-routes="config"><strong>专用配置电路 + 配置 SRAM</strong><small>装入 LUT 内容、互连和资源配置</small></div>
+        <div class="soc-node"><strong>PL 时钟网络 / 复位逻辑</strong><small>连接用户电路，处理所需的时钟域与复位同步</small></div>
+        <div class="soc-node"><strong>PL I/O · 外部引脚</strong><small>用户逻辑可连接 LED、采集接口等外设</small></div>
+      </section>
+    </div>
+    <div class="soc-pin-row"><span data-routes="data">PS DDR 引脚 ↕</span><span data-routes="config">PS 启动接口 / MIO ↕</span><span>PL I/O 引脚 ↕</span></div>
+  </div>
+  <div class="soc-board"><span class="soc-board-title">芯片外 / 开发板上</span><div class="soc-external" data-routes="data"><strong>DDR DRAM 芯片</strong><small>本例的输入 / 输出缓冲区</small></div><div class="soc-external" data-routes="config"><strong>SD 卡 / QSPI Flash</strong><small>启动镜像与 PL 配置数据</small></div><div class="soc-external"><strong>LED / 外部采集器件</strong><small>通过板级连线接 PL 引脚</small></div></div>
+  <div class="soc-explanation" aria-live="polite" aria-atomic="true">
+    <div data-soc-description="all"><strong>先看边界，再看连接。</strong><p>CPU、DDR 控制器在 PS，定制加速器在 PL，DDR 存储芯片在板上。控制寄存器、搬运数据、完成中断和配置比特流，分别走不同的通路。</p></div>
+    <div data-soc-description="control" hidden><strong>① CPU 发命令：PS → M_AXI_GP0 → PL 寄存器</strong><p>软件写入缓冲区地址、长度和启动位；PL 控制逻辑据此开始工作。普通寄存器访问不会重新配置 LUT 或布线，也不是 CPU 在执行 Verilog。</p></div>
+    <div data-soc-description="data" hidden><strong>② DMA 搬数据：PL 主设备 → S_AXI_HP0 → PS DDR 控制器 ↔ 板外 DDR</strong><p>本例的 PL DMA 取输入、向加速器送数据，再把输出写回 DDR。读请求朝 PS 发出，读数据返回 PL；CPU 不必逐个搬运数据。HP 不自动保持 CPU Cache 一致性。</p></div>
+    <div data-soc-description="irq" hidden><strong>③ 完成后中断：PL → IRQ_F2P → PS 的 GIC → CPU</strong><p>加速器或 DMA 发出中断，CPU 执行驱动的中断处理函数，确认完成并处理结果。中断只是通知，数据通常已经通过内存通路写入缓冲区；也可以轮询状态寄存器。</p></div>
+    <div data-soc-description="config" hidden><strong>④ 配置 PL：PS 软件 → DevC / PCAP → PL 配置电路</strong><p>FSBL 或后续软件把存储中的 bitstream 交给配置通路，建立 PL 电路。BootROM 本身不配置 PL；经 PCAP 加载是软件后续执行的步骤，也可以使用受支持的 JTAG 配置路径。</p></div>
+  </div>
+  <figcaption>为保持图形清晰，只展开本例选用的 GP、HP、中断与 PCAP 通路；并未画出所有 PS 内部路由、AXI 端口、外设与时钟。左右模块还通过各自区域内的互连配合工作，例如 CPU 访问 DDR、寄存器控制加速器；这些内部连线已省略。</figcaption>
+</figure>
+
+该示意依据 [UG585：PS–PL AXI 接口及方向](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PS-PL-AXI-Interfaces)、[PL 经 HP 接口进行 DMA 的示例](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PL-DMA-via-AXI-High-Performance-HP-Interface)与 [PS–PL 功能和配置接口](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PS-PL-Interfaces)绘制；中断和时钟复位分别参见 [Interrupt Signals](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/Interrupt-Signals)与 [Clocks and Resets](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/Clocks-and-Resets)。DMA、加速器和寄存器的组合是一个教学设计，不是每颗 Zynq 上电就自带的用户电路。
+
+### 图里的每条连接，各解决什么问题？
+
+| 连接 | 关系与作用 | 容易误解的地方 |
+| --- | --- | --- |
+| PS CPU → `M_AXI_GP0` → PL 控制寄存器 | 配置用户 IP 的参数、读状态、发启动命令 | 这里的“配置参数”不是加载 bitstream；`M` 表示 PS 侧是 AXI 主设备 |
+| PL DMA → `S_AXI_HP0` → PS 内存通路 | PL 主动读写 DDR / OCM，用于大批量数据搬运 | `S` 表示 PS 接口是从设备，发请求的是 PL；数据可双向传输 |
+| PL → `IRQ_F2P` → PS GIC | 报告任务完成或异常 | 中断线不承载整个结果数组 |
+| PS → DevC / PCAP → PL 配置电路 | 加载 bitstream，建立或更新 PL 电路 | 专用配置路径与用户 IP 的 AXI 控制接口用途不同 |
+| PS FCLK / 复位信号 → PL | 为用户逻辑提供可选时钟来源和复位控制 | 仍要正确设计时钟域与复位同步；PL 也可使用外部时钟与片内时钟资源 |
+| PS 外设 → MIO 或 EMIO → 引脚 / PL | 连接硬核 UART、GPIO 等受支持外设 | EMIO 路经 PL，不意味着该硬核外设变成了 PL 中生成的软 IP |
+
+Zynq-7000 的 PS 侧 AXI 接口基于 **AXI3**；图中用户 IP 可采用 AXI4-Lite 等接口，通过适当互连或协议转换连接。`GP`、`HP` 端口名与方向以 **PS 一侧** 为参照。具体接口规范与 MIO / EMIO 限制分别见 [UG585：AXI 接口表](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PS-PL-AXI-Interfaces)和 [I/O 外设连接](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/IOP-Interface-Connections)。
+
+**共享 DDR 不等于自动 Cache 一致。** 本例的 HP 通路不经过 CPU 的一致性路径，驱动必须按平台要求处理 DMA 缓冲区的一致性与同步，例如使用操作系统 DMA API。Zynq-7000 还提供 ACP，可在正确的事务属性与系统配置下支持与 CPU Cache 一致的访问；它与 HP 是不同接口。不要把其他 Zynq 系列的端口名称和一致性机制直接套过来。[UG585：系统级内存访问路径](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/System-Level-View)、[ACP 使用方式](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/ACP-Usage)
+
+### 再放大 PL：LUT、FF、DSP 与 BRAM 怎样配合？
+
+PL 中的各组件通过可编程互连组成你的电路。下面用一个**把输入做乘加并暂存结果**的例子，画出数据和时钟的关系；它不是每个设计必须遵循的流水线。
+
+<figure class="pl-datapath">
+  <div class="pl-path-title"><strong>PL 内部的一条示例数据通路</strong><span>布局布线决定资源位置与实际线路</span></div>
+  <div class="pl-path-stages">
+    <div><b>输入接口</b><small>PL I/O 或 AXI 数据</small></div><span aria-hidden="true">→</span>
+    <div><b>LUT + FF</b><small>选择 / 控制 / 暂存</small></div><span aria-hidden="true">→</span>
+    <div><b>DSP + FF</b><small>乘加 / 流水寄存器</small></div><span aria-hidden="true">→</span>
+    <div><b>BRAM</b><small>结果缓冲区</small></div><span aria-hidden="true">→</span>
+    <div><b>输出接口</b><small>DMA 或 PL I/O</small></div>
+  </div>
+  <div class="pl-clock-path"><b>时钟网络 → 各时序单元</b><span>FF、DSP 的寄存器与 BRAM 端口按所连接的时钟工作；LUT 的组合逻辑在输入变化后传播结果。</span></div>
+  <div class="pl-config-path"><b>配置 SRAM → 资源设置与互连选择</b><span>决定电路“怎样组成”；BRAM 和 FF 则可保存运行中的用户数据与状态。</span></div>
+  <figcaption>一部分乘法也可能映射到 LUT；存储可以映射到 BRAM 或分布式 RAM。实际映射以综合与实现结果为准，原理依据 <a href="https://docs.amd.com/r/en-US/ug474_7Series_CLB/CLB-Overview">UG474 的逻辑块说明</a>与 <a href="https://docs.amd.com/r/2021.1-English/ug953-vivado-7series-libraries/DSP48E1">DSP48E1 原语说明</a>。</figcaption>
+</figure>
+
+### PS 上的软件、PL 的电路，各装入什么？
+
+<div class="soc-build-paths">
+  <div class="soc-build-path soc-build-path--ps"><strong>PS 软件路线</strong><p>C / C++ 等 → Arm 编译器与链接器 → ELF / 启动镜像中的软件 → CPU 从存储器取指执行</p><small>PS 的硬核 CPU 已经存在；程序与寄存器设置决定它执行什么、外设怎样工作。</small></div>
+  <div class="soc-build-path soc-build-path--pl"><strong>PL 硬件路线</strong><p>Chisel / Verilog → 综合与布局布线 → bitstream → 配置 SRAM → 电路按时钟并行工作</p><small>实现加速器、控制逻辑或软核 CPU。软核 CPU 即使能运行程序，也仍然属于 PL。</small></div>
+</div>
+
+**“软核 CPU”不会把 PL 变成 PS。** 判断依据是硬件从哪里来：PS 的 Arm 核在芯片制造时已固定；在 PL 中实现的 RISC-V 或 MicroBlaze 使用可编程资源。相反，把 PS 的外设信号通过 EMIO 接到 PL 引脚，也不会把那个硬核外设变成软 IP。
+
+对于 Zynq-7000，一个常见的非安全启动例子是：**PS 执行 BootROM → 从所选启动介质装入 FSBL → FSBL 初始化系统，并可选地通过 PCAP 配置 PL → 继续运行应用或后续引导程序。** PL 也可以稍后再配置；在相应供电与启动条件下，PS 软件可以在 PL 用户逻辑尚未配置时运行。这里的 FSBL 是第一阶段引导程序，BootROM 本身不负责把用户 bitstream 配入 PL。[UG585：PS 启动与可选 PL 配置](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PS-Bring-up-with-PL-Configuration-Example)、[PL 初始化与配置](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PL-Initialization-and-Configuration)
+
+加载 PL 比特流的硬件路径和传输机制参见 [UG585：PCAP Bridge](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PCAP-Bridge-to-PL)及 [PL 配置方式](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/PL-Configuration-Considerations)。这与上一节普通 Artix-7 从配置 Flash 自主加载的例子不同，不能混用启动方案。
+
+<h2 id="programming">07 · “烧录”到底烧到了哪里？</h2>
 
 对常见的 SRAM 型 FPGA，需要区分两件事：
 
@@ -294,7 +421,7 @@ A、B 路径及板载桥的实际例子见 [Basys 3 手册的 FPGA Configuration
 
 在包含 CPU 的设计里，bitstream 配置 CPU 及其外围硬件，软件工具链生成供 CPU 执行的程序。程序可以通过调试器加载、由启动流程加载，或按工程方案放入初始化存储器；这些是另一层的数据与启动关系。更换到 Versal 等架构时，还会遇到 PDI 等镜像格式，不能把所有 AMD 器件都简化成同一种 `.bit` 流程。[AMD UG908 文件与编程流程](https://docs.amd.com/r/2024.1-English/ug908-vivado-programming-debugging)
 
-<h2 id="tools">07 · 实际会用到哪些工具？</h2>
+<h2 id="tools">08 · 实际会用到哪些工具？</h2>
 
 | 环节 | 工具例子 | 主要产物 |
 | --- | --- | --- |
@@ -305,7 +432,7 @@ A、B 路径及板载桥的实际例子见 [Basys 3 手册的 FPGA Configuration
 
 Vivado 中常见流程是 **Run Synthesis → Run Implementation → Generate Bitstream → Hardware Manager 下载**。Quartus 中对应会看到 **Analysis & Synthesis → Fitter → Assembler → Programmer**，并配合时序分析。工具支持哪些器件、需要什么版本，应根据芯片型号查询。[Vivado 操作流程](https://docs.amd.com/r/2022.2-English/ug893-vivado-ide/Running-RTL-Analysis-Synthesis-Implementation-and-Bitstream-Generation)、[Quartus 官方介绍](https://www.altera.com/products/development-tools/quartus)、[Quartus 编程文件生成说明](https://www.intel.com/content/www/us/en/docs/programmable/683562/23-2/generation-of-device-programming-files.html)
 
-<h2 id="practice">08 · 第一次动手可以怎么走？</h2>
+<h2 id="practice">09 · 第一次动手可以怎么走？</h2>
 
 建议把第一个小目标定成：**用 Chisel 写计数器，让一颗 LED 慢慢闪烁。**
 
@@ -350,7 +477,7 @@ class Blinker extends Module {
 
 这些排查项由前述配置、时序和板级连接关系归纳，不能替代特定开发板的诊断步骤。
 
-<h2 id="faq">09 · 几个容易混淆的地方</h2>
+<h2 id="faq">10 · 几个容易混淆的地方</h2>
 
 - **Chisel 生成 Verilog 后，还需要 FPGA 工具吗？** 需要。常见 Chisel 流程到 HDL 为止，具体器件的综合、布局布线和配置文件生成由后续工具完成。
 - **必须用 Chisel 吗？** 可以直接写 Verilog/SystemVerilog，从流程图中间进入。Chisel 的价值在于用 Scala 的参数化和抽象能力构造、复用电路。
@@ -360,7 +487,9 @@ class Blinker extends Module {
 
 进一步阅读可以从 [Chisel 官方入门](https://www.chisel-lang.org/docs)、[CIRCT 的 Verilog 生成说明](https://circt.llvm.org/docs/VerilogGeneration/)和 [AMD FPGA 设计流程课程](https://www.amd.com/en/corporate/university-program/vivado/vivado-workshops/vivado-fpga-design-flow.html)开始。
 
-<h2 id="sources">10 · 来源与阅读顺序</h2>
+<h2 id="sources">11 · 来源与阅读顺序</h2>
+
+PS / PL 关系与接口核对依据为 AMD UG585（1.15，2026-02-06）。本节关系图针对 Zynq-7000；其他 Zynq、Versal 或厂商器件需要使用各自的架构文档。
 
 本文迁入本地 `chisel/README.md`（2026-09-26 版本）的全部八节知识内容，保留计数器、工具对照和上板练习，改为网页流程图，并补充 FPGA 组成、烧录角色、文件格式和排查路线。下列官方资料用来核对新增技术说明。
 
@@ -369,5 +498,7 @@ class Blinker extends Module {
 3. [AMD UG474](https://docs.amd.com/r/en-US/ug474_7Series_CLB/CLB-Overview)与 [DS180](https://docs.amd.com/api/khub/documents/2LByHkO~nSZXcei2D55fTg/content)：查逻辑资源组织与具体器件配置。
 4. [AMD UG470](https://docs.amd.com/api/khub/documents/FOs3lXmlcWxBhTIFxVKyGA/content)与 [UG908](https://docs.amd.com/r/2024.1-English/ug908-vivado-programming-debugging)：查配置模式、比特流与 Flash 编程。
 5. [Digilent Basys 3 手册](https://digilent.com/reference/_media/reference/programmable-logic/basys-3/basys3_rm.pdf)：用一块实际 Artix-7 开发板理解 USB-JTAG、Flash、跳线和 FPGA 的连接。
+
+6. [AMD UG585：Zynq-7000 技术参考手册](https://docs.amd.com/r/en-US/ug585-zynq-7000-SoC-TRM/Overview)：核对 PS / PL 边界、AXI 连接、DDR 访问、MIO / EMIO 与 PCAP 配置；文中给出了各主题的直接链接。
 
 <div class="guide-end"><strong>第一次实践的目标</strong><p>先让一颗 LED 按预期闪烁，再让它在断电重启后自动闪烁。前一步串起硬件设计流程，后一步补齐非易失存储与启动流程。</p><a href="/#library">返回技术笔记 →</a></div>
