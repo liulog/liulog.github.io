@@ -1,0 +1,60 @@
+- title: 从 Chisel 到 FPGA：电路如何真正跑起来
+  url: /chisel-to-fpga.html
+  category: hardware
+  label: 数字电路
+  format: 图解指南
+  description: 从 Scala 构造电路，到综合、布局布线、bitstream，再到 JTAG 下载与 Flash 启动。
+- title: RISC-V Sv39 页表构建步进播放器
+  url: /riscv-sv39-pagetable-bringup.html
+  category: architecture
+  label: 计算机体系结构
+  format: 交互演示
+  description: 一步步观察页表建立、映射变化和地址翻译，支持鼠标与键盘步进。
+- title: RISC-V Sv39 页表构建文档
+  url: /riscv-sv39-pagetable-bringup-doc.html
+  category: architecture
+  label: 计算机体系结构
+  format: 源码笔记
+  description: 沿 Linux 启动路径梳理 Sv39 页表构建，与交互播放器对照阅读。
+- title: satp 与 sfence.vma 的语义
+  url: /riscv-satp-sfence-semantics.html
+  category: architecture
+  label: 计算机体系结构
+  format: 深入解析
+  description: 理解 Bare 与分页的切换瞬间、过期 TLB 和地址翻译同步的时机。
+- title: SMP 多核处理器架构可视化
+  url: /smp-multicore-arch.html
+  category: architecture
+  label: 计算机体系结构
+  format: 交互演示
+  description: 从四核的 TLB 与 Cache 层次出发，对比 RISC-V 和 Arm 的多核结构。
+- title: Linux KPTI：隔离机制与架构对照
+  url: /linux-kpti-architecture.html
+  category: kernel
+  label: 内核与安全
+  format: 源码笔记
+  description: 对照 x86、arm64、RISC-V 与 LoongArch，追踪页表切换与主线实现。
+- title: Linux KASLR：内核地址空间布局随机化
+  url: /linux-kaslr.html
+  category: kernel
+  label: 内核与安全
+  format: 深入解析
+  description: 启动重定位、物理与虚拟地址随机化，以及跨重启实验与 KPTI 对比。
+- title: MMU 页表基址寄存器可视化
+  url: /mmu-page-table-base.html
+  category: architecture
+  label: 计算机体系结构
+  format: 交互演示
+  description: 对照 x86 CR3、ARM64 TTBR0/1 与 RISC-V satp 的位图和进程切换流程。
+- title: 链接器脚本地址：VMA、LMA 与 AT()
+  url: /linker-script-addresses.html
+  category: tools
+  label: 工程工具
+  format: 实践指南
+  description: 结合 RISC-V 高半区实例，读懂 ELF Segment 与加载地址，用 readelf 排查问题。
+- title: Node.js、npm 与 nvm 的分工
+  url: /npm-nvm-nodejs.html
+  category: tools
+  label: 工程工具
+  format: 图解指南
+  description: 运行时、包管理器与版本管理器之间的关系，以及 PATH 和全局安装前缀。

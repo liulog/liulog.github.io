@@ -1,43 +1,64 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0f766e">
-    <meta name="description" content="liu.log · 系统软件学习与实践">
+    <meta name="theme-color" content="#17664c">
+    <meta name="description" content="{{ page.description | default: 'liu.log · 从系统软件到数字电路的学习与实践' | escape }}">
     <title>{{ page.title }} - liu.log</title>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="{{ '/styles.css' | relative_url }}">
+    <link rel="stylesheet" href="{{ '/assets/notebook.css' | relative_url }}">
+    <script src="{{ '/assets/site.js' | relative_url }}" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
     <header class="site-header">
         <div class="header-inner">
             <a href="/" class="site-logo">
                 <span class="logo-text">liu.log</span>
             </a>
             <nav class="site-nav">
-                <a href="/" class="nav-link">首页</a>
+                <a href="/" class="nav-link"{% if page.url == '/' %} aria-current="page"{% endif %}>首页</a>
+                <a href="/#library" class="nav-link">文章</a>
+                <a href="/chisel-to-fpga.html" class="nav-link"{% if page.page_class == 'fpga-article' %} aria-current="page"{% endif %}>FPGA 专题</a>
                 <a href="/about.html" class="nav-link">关于</a>
                 <a href="/contact.html" class="nav-link">联系</a>
             </nav>
         </div>
     </header>
 
-    <main class="site-main">
+    <main class="site-main" id="main-content">
+        {% if page.toc %}
+        <div class="reading-layout">
+            <aside class="reading-sidebar">
+                <a href="/#library" class="back-link">← 全部文章</a>
+                <details class="toc-disclosure" open>
+                    <summary>本文目录</summary>
+                    <nav id="reading-toc" aria-label="文章目录">
+                        {% for section in page.sections %}
+                        <a href="#{{ section.id }}">{{ section.title }}</a>
+                        {% endfor %}
+                    </nav>
+                </details>
+                <a class="back-link" href="#main-content">回到顶部 ↑</a>
+            </aside>
+        {% endif %}
         <div class="content-wrapper{% if page.article %} technical-article{% endif %}{% if page.page_class %} {{ page.page_class }}{% endif %}">
             {{ content }}
         </div>
+        {% if page.toc %}</div>{% endif %}
     </main>
 
     <footer class="site-footer">
         <div class="footer-inner">
-            <p class="footer-text">© 2026 liu.log · 系统软件学习与实践</p>
+            <p class="footer-text">© 2026 liu.log · 保持好奇，理解底层。</p>
             <div class="footer-links">
-                <a href="https://github.com/liulog" target="_blank" class="footer-link">GitHub</a>
+                <a href="https://github.com/liulog" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub ↗</a>
                 <span class="footer-divider">·</span>
-                <a href="https://space.bilibili.com/1078937143" target="_blank" class="footer-link">Bilibili</a>
+                <a href="https://space.bilibili.com/1078937143" target="_blank" rel="noopener noreferrer" class="footer-link">Bilibili ↗</a>
                 <span class="footer-divider">·</span>
                 <a href="mailto:liujingyu24s@ict.ac.cn" class="footer-link">Email</a>
             </div>
