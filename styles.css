@@ -1987,3 +1987,121 @@ a:hover {
         transform: translate(-50%, 50%) rotate(90deg);
     }
 }
+
+/* Security conference guide */
+.security-venue-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+}
+
+.security-venue {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.security-venue h3 {
+    margin-bottom: var(--space-sm);
+}
+
+.security-venue h3 small {
+    display: block;
+    margin-top: var(--space-xs);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+}
+
+.security-venue p {
+    font-size: 0.9375rem;
+}
+
+.security-venue .security-sources {
+    margin-top: auto;
+    margin-bottom: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.security-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.security-badge--official {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.security-badge--estimate {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.security-deadline-wrap {
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+}
+
+.security-deadlines {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.security-deadlines th,
+.security-deadlines td {
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.security-deadlines thead th {
+    background: var(--color-bg-secondary);
+    white-space: nowrap;
+}
+
+.security-deadlines tbody th {
+    min-width: 11rem;
+    font-weight: 600;
+}
+
+.security-deadlines td:nth-child(2),
+.security-deadlines td:nth-child(3) {
+    min-width: 9rem;
+}
+
+.security-deadlines td:last-child {
+    min-width: 8rem;
+}
+
+.security-note {
+    margin-bottom: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.security-summary {
+    margin: 0 0 var(--space-lg) var(--space-lg);
+}
+
+.security-summary li + li {
+    margin-top: var(--space-sm);
+}
+
+@media (max-width: 640px) {
+    .security-venue-grid {
+        grid-template-columns: 1fr;
+    }
+}

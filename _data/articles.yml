@@ -1,3 +1,9 @@
+- title: 安全四大顶会与投稿时间
+  url: /security-conferences.html
+  category: kernel
+  label: 安全研究
+  format: 会议指南
+  description: 对照 S&P、CCS、USENIX Security、NDSS 的研究范围和后续投稿轮次。
 - title: 从 Chisel 到 FPGA：电路如何真正跑起来
   url: /chisel-to-fpga.html
   category: hardware
