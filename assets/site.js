@@ -26,6 +26,24 @@
     library.querySelector('.library-tools').hidden = false;
   }
 
+  const timeline = document.querySelector('#security-timeline');
+  if (timeline) {
+    const now = new Date();
+    const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+    const entries = [...timeline.querySelectorAll('[data-until]')]
+      .sort((left, right) => left.dataset.sort.localeCompare(right.dataset.sort));
+    let upcoming = 0;
+    entries.forEach(entry => {
+      if (entry.dataset.until <= today) {
+        entry.remove();
+        return;
+      }
+      upcoming += 1;
+      timeline.append(entry);
+    });
+    document.querySelector('#security-timeline-empty').hidden = upcoming !== 0;
+  }
+
   document.querySelectorAll('[data-soc-explorer]').forEach(explorer => {
     const controls = explorer.querySelector('.soc-controls');
     const buttons = [...controls.querySelectorAll('[data-soc-view]')];
