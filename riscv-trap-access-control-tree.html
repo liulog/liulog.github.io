@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="从 RISC-V 异常编码定位权限检查环节，查阅 PMP、页表、两阶段翻译、RVA23S64 与相关扩展。">
+  <meta name="theme-color" content="#102a2a">
+  <title>RISC-V 陷阱与访问控制 · liu.log</title>
+  <link rel="stylesheet" href="./assets/riscv-trap.css">
+  <script src="./assets/riscv-trap.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <header class="top">
+    <nav class="frame site-nav" aria-label="站点导航">
+      <a class="brand" href="./">liu.log</a>
+      <a href="./#library">全部文章</a>
+      <a href="./riscv-ext.html">阅读指南</a>
+    </nav>
+  </header>
+  <main id="main">
+    <header class="intro">
+      <div class="frame intro-content">
+        <div>
+          <h1>RISC-V 陷阱与访问控制</h1>
+          <p>从 <code>mcause</code>、<code>scause</code> 或 <code>vscause</code> 出发，追踪一次访问在哪个环节被拦截。</p>
+        </div>
+        <nav class="intro-links" aria-label="常见访存故障">
+          <a class="quick-link" href="#af"><span>访问故障</span><code>1 / 5 / 7</code></a>
+          <a class="quick-link" href="#pf"><span>页故障</span><code>12 / 13 / 15</code></a>
+          <a class="quick-link" href="#gpf"><span>客户页故障</span><code>20 / 21 / 23</code></a>
+        </nav>
+      </div>
+    </header>
+    <div class="frame content">
+      <section aria-label="陷阱关系图">
+        <noscript><p>交互树需要 JavaScript。也可查阅<a href="./riscv-ext.html">阅读指南与异常对照表</a>。</p></noscript>
+        <div id="explorer" hidden>
+          <form id="filters" class="filters" role="search" aria-label="搜索异常与机制">
+            <label class="search">搜索关键词或编码
+              <input id="query" type="search" placeholder="如 PMP、cause 13、tval=2" autocomplete="off">
+            </label>
+            <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-controls">筛选</button>
+            <div id="filter-controls" class="filter-controls">
+              <label>规范状态
+                <select id="status-filter">
+                  <option value="">全部状态</option>
+                  <option value="standard">已批准规范</option>
+                  <option value="draft">公开提案</option>
+                  <option value="platform">平台或实现相关</option>
+                </select>
+              </label>
+              <label>Profile 要求
+                <select id="profile-filter">
+                  <option value="">全部要求</option>
+                  <option value="mandatory">RVA23S64 强制</option>
+                  <option value="optional">RVA23S64 可选</option>
+                  <option value="u64-option">RVA23U64 可选</option>
+                  <option value="not-in-profile">RVA23S64 未列入</option>
+                </select>
+              </label>
+              <button id="clear" type="button">清除筛选</button>
+            </div>
+          </form>
+          <div class="explorer-grid">
+            <div class="map">
+              <header class="map-toolbar">
+                <h2 id="explorer-title">陷阱分支树</h2>
+                <p id="result-count" role="status"></p>
+                <div class="tree-actions" role="group" aria-label="分支操作">
+                  <button id="expand-all" type="button">全部展开</button>
+                  <button id="collapse-all" type="button">收起分支</button>
+                </div>
+              </header>
+              <div class="map-controls">
+                <nav id="map-path" class="map-path" aria-label="图中位置"></nav>
+                <div class="canvas-tools">
+                  <div class="tree-actions" role="group" aria-label="画布缩放">
+                    <button id="zoom-out" type="button" aria-label="缩小">−</button>
+                    <button id="reset-zoom" type="button" title="恢复实际大小" aria-label="恢复实际大小"><span id="zoom-level">100%</span></button>
+                    <button id="zoom-in" type="button" aria-label="放大">+</button>
+                    <button id="fit-tree" type="button">适应窗口</button>
+                  </div>
+                  <a class="detail-jump" href="#detail">查看详情</a>
+                </div>
+              </div>
+              <div id="map-stage" class="map-stage">
+                <canvas id="map-wires" class="map-wires" aria-hidden="true"></canvas>
+                <div id="tree-viewport" class="tree-viewport" role="region" aria-label="可滚动的陷阱树画布" tabindex="0">
+                  <div id="tree-world" class="tree-world">
+                    <div id="map-content" class="map-content"></div>
+                  </div>
+                </div>
+                <p id="empty" class="empty" hidden>没有匹配项。可以试试扩展名、CSR 名或异常编号。</p>
+              </div>
+              <footer class="map-footer">
+                <p>点击节点查看详情，用 + / − 展开或收起分支。可以拖动画布。</p>
+              </footer>
+            </div>
+            <section id="detail" class="detail" aria-labelledby="detail-title" tabindex="-1"></section>
+          </div>
+        </div>
+      </section>
+
+      <footer id="sources" class="refs">
+        <h2>规范来源</h2>
+        <ul>
+          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/machine.html">Machine ISA · 异常编码、PMP、PMA</a></li>
+          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/supervisor.html">Supervisor ISA · 页表与翻译</a></li>
+          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/hypervisor.html">H 扩展 · 两阶段翻译与委托</a></li>
+          <li><a href="https://docs.riscv.org/reference/rva23/v1.0/rva23-profiles.html">RVA23 Profiles · 强制与可选扩展</a></li>
+          <li><a href="https://riscv.github.io/adm-spec-dashboard/">RISC-V Specification Dashboard · 扩展进度</a></li>
+          <li><a href="./riscv-ext.html">阅读指南 · 异常对照与排查示例</a></li>
+        </ul>
+      </footer>
+    </div>
+  </main>
+  <script id="tree-data" type="application/json">
+{"id": "root", "label": "同步异常与访问控制", "detail": "沿异常编码定位检查环节。同步异常主要按取指、加载和存储/原子内存操作（AMO）区分。特权架构规定编码和检查规则，RVA23S64 规定特定执行环境必须提供的能力，配置和实现决定某次访问的实际结果。", "children": [
+  {"id": "mcause", "label": "标准编码速查", "detail": "从 cause 寄存器的最高位区分中断和同步异常。下方按 Machine 与 Hypervisor 章节给出编码。有 H 的列适用于 M/HS；进入 VS 的虚拟中断有单独的重编码规则。", "status": "standard", "sources": ["machine", "hypervisor"], "children": [
+    {"id": "mcause-sync", "label": "同步异常", "detail": "Interrupt 位为 0。同一条指令可能遇到多个同步异常，最终报告哪一项取决于架构规定的优先级。", "status": "standard", "children": [
+      {"id": "mcause-sync-0", "label": "指令地址未对齐", "status": "standard", "codes": [0], "sub": "异常 0", "kind": "exception", "official": {"base": "Instruction address misaligned"}, "related": ["mis-ctrl"]},
+      {"id": "mcause-sync-1", "label": "指令访问故障", "status": "standard", "codes": [1], "sub": "异常 1", "kind": "exception", "official": {"base": "Instruction access fault"}, "related": ["af"]},
+      {"id": "mcause-sync-2", "label": "非法指令", "status": "standard", "codes": [2], "sub": "异常 2", "kind": "exception", "official": {"base": "Illegal instruction"}, "related": ["ill"]},
+      {"id": "mcause-sync-3", "label": "断点", "status": "standard", "codes": [3], "sub": "异常 3", "kind": "exception", "official": {"base": "Breakpoint"}, "related": ["bp"]},
+      {"id": "mcause-sync-4", "label": "加载地址未对齐", "status": "standard", "codes": [4], "sub": "异常 4", "kind": "exception", "official": {"base": "Load address misaligned"}, "related": ["mis-ls"]},
+      {"id": "mcause-sync-5", "label": "加载访问故障", "status": "standard", "codes": [5], "sub": "异常 5", "kind": "exception", "official": {"base": "Load access fault"}, "related": ["af"]},
+      {"id": "mcause-sync-6", "label": "存储/AMO 地址未对齐", "status": "standard", "codes": [6], "sub": "异常 6", "kind": "exception", "official": {"base": "Store/AMO address misaligned"}, "related": ["mis-ls"]},
+      {"id": "mcause-sync-7", "label": "存储/AMO 访问故障", "status": "standard", "codes": [7], "sub": "异常 7", "kind": "exception", "official": {"base": "Store/AMO access fault"}, "related": ["af"]},
+      {"id": "mcause-sync-8", "label": "来自 U 模式的环境调用", "profile": "mandatory", "status": "standard", "codes": [8], "sub": "异常 8", "kind": "exception", "official": {"base": "Environment call from U-mode", "hypervisor": "Environment call from U-mode or VU-mode"}},
+      {"id": "mcause-sync-9", "label": "来自 S 模式的环境调用", "profile": "mandatory", "status": "standard", "codes": [9], "sub": "异常 9", "kind": "exception", "official": {"base": "Environment call from S-mode", "hypervisor": "Environment call from HS-mode"}},
+      {"id": "mcause-sync-10", "label": "来自 VS 模式的环境调用", "profile": "mandatory", "status": "standard", "codes": [10], "sub": "异常 10", "kind": "exception", "official": {"base": "Reserved", "hypervisor": "Environment call from VS-mode"}},
+      {"id": "mcause-sync-11", "label": "来自 M 模式的环境调用", "status": "standard", "codes": [11], "sub": "异常 11", "kind": "exception", "official": {"base": "Environment call from M-mode"}},
+      {"id": "mcause-sync-12", "label": "指令页故障", "profile": "mandatory", "status": "standard", "codes": [12], "sub": "异常 12", "kind": "exception", "official": {"base": "Instruction page fault"}, "related": ["pf"]},
+      {"id": "mcause-sync-13", "label": "加载页故障", "profile": "mandatory", "status": "standard", "codes": [13], "sub": "异常 13", "kind": "exception", "official": {"base": "Load page fault"}, "related": ["pf"]},
+      {"id": "mcause-sync-14", "label": "保留", "status": "standard", "codes": [14], "sub": "异常 14", "kind": "exception", "official": {"base": "Reserved"}},
+      {"id": "mcause-sync-15", "label": "存储/AMO 页故障", "profile": "mandatory", "status": "standard", "codes": [15], "sub": "异常 15", "kind": "exception", "official": {"base": "Store/AMO page fault"}, "related": ["pf"]},
+      {"id": "mcause-sync-16", "label": "双重陷阱", "profile": "not-in-profile", "status": "standard", "codes": [16], "sub": "异常 16", "kind": "exception", "official": {"base": "Double trap"}, "related": ["double"], "sources": ["ssdbltrp"]},
+      {"id": "mcause-sync-17", "label": "保留", "status": "standard", "codes": [17], "sub": "异常 17", "kind": "exception", "official": {"base": "Reserved"}},
+      {"id": "mcause-sync-18", "label": "软件检查", "status": "standard", "codes": [18], "sub": "异常 18", "kind": "exception", "official": {"base": "Software check"}, "related": ["mcause-swchk"]},
+      {"id": "mcause-sync-19", "label": "硬件错误", "status": "standard", "codes": [19], "sub": "异常 19", "kind": "exception", "official": {"base": "Hardware error"}, "related": ["sw-hw"]},
+      {"id": "mcause-sync-20-23", "label": "H 的客户页故障与虚拟指令", "detail": "基础 M-mode 表将这一段列为保留。H 定义后，其中三个是客户页故障，另一个是虚拟指令异常。", "status": "standard", "codes": ["20–23"], "sub": "异常 20–23", "kind": "exception", "official": {"base": "Reserved"}, "children": [
+        {"id": "mcause-sync-20", "label": "指令客户页故障", "profile": "mandatory", "status": "standard", "codes": [20], "sub": "异常 20", "kind": "exception", "official": {"base": "Reserved", "hypervisor": "Instruction guest-page fault"}, "related": ["gpf"]},
+        {"id": "mcause-sync-21", "label": "加载客户页故障", "profile": "mandatory", "status": "standard", "codes": [21], "sub": "异常 21", "kind": "exception", "official": {"base": "Reserved", "hypervisor": "Load guest-page fault"}, "related": ["gpf"]},
+        {"id": "mcause-sync-22", "label": "虚拟指令", "profile": "mandatory", "status": "standard", "codes": [22], "sub": "异常 22", "kind": "exception", "official": {"base": "Reserved", "hypervisor": "Virtual instruction"}, "related": ["ill"]},
+        {"id": "mcause-sync-23", "label": "存储/AMO 客户页故障", "profile": "mandatory", "status": "standard", "codes": [23], "sub": "异常 23", "kind": "exception", "official": {"base": "Reserved", "hypervisor": "Store/AMO guest-page fault"}, "related": ["gpf"]}
+      ]},
+      {"id": "mcause-sync-24-31", "label": "指定给定制使用", "status": "standard", "codes": ["24–31"], "sub": "异常 24–31", "kind": "exception", "official": {"base": "Designated for custom use"}},
+      {"id": "mcause-sync-32-47", "label": "保留", "status": "standard", "codes": ["32–47"], "sub": "异常 32–47", "kind": "exception", "official": {"base": "Reserved"}},
+      {"id": "mcause-sync-48-63", "label": "指定给定制使用", "status": "standard", "codes": ["48–63"], "sub": "异常 48–63", "kind": "exception", "official": {"base": "Designated for custom use"}},
+      {"id": "mcause-sync-≥64", "label": "保留", "status": "standard", "codes": ["≥64"], "sub": "异常 ≥64", "kind": "exception", "official": {"base": "Reserved"}}
+    ]},
+    {"id": "mcause-irq", "label": "中断", "detail": "Interrupt 位为 1。H 定义的虚拟软件、定时器和外部中断在 M/HS 表中是 2、6、10；实际进入 VS 时，在 vscause 中分别记录为 1、5、9。", "status": "standard", "children": [
+      {"id": "mcause-irq-0", "label": "保留", "status": "standard", "codes": [0], "sub": "中断 0", "kind": "interrupt", "official": {"base": "Reserved"}},
+      {"id": "mcause-irq-1", "label": "监督级软件中断", "profile": "mandatory", "status": "standard", "codes": [1], "sub": "中断 1", "kind": "interrupt", "official": {"base": "Supervisor software interrupt"}},
+      {"id": "mcause-irq-2", "label": "虚拟监督级软件中断", "profile": "mandatory", "status": "standard", "codes": [2], "sub": "中断 2", "kind": "interrupt", "official": {"base": "Reserved", "hypervisor": "Virtual supervisor software interrupt"}},
+      {"id": "mcause-irq-3", "label": "机器软件中断", "status": "standard", "codes": [3], "sub": "中断 3", "kind": "interrupt", "official": {"base": "Machine software interrupt"}},
+      {"id": "mcause-irq-4", "label": "保留", "status": "standard", "codes": [4], "sub": "中断 4", "kind": "interrupt", "official": {"base": "Reserved"}},
+      {"id": "mcause-irq-5", "label": "监督级定时器中断", "profile": "mandatory", "status": "standard", "codes": [5], "sub": "中断 5", "kind": "interrupt", "official": {"base": "Supervisor timer interrupt"}},
+      {"id": "mcause-irq-6", "label": "虚拟监督级定时器中断", "profile": "mandatory", "status": "standard", "codes": [6], "sub": "中断 6", "kind": "interrupt", "official": {"base": "Reserved", "hypervisor": "Virtual supervisor timer interrupt"}},
+      {"id": "mcause-irq-7", "label": "机器定时器中断", "status": "standard", "codes": [7], "sub": "中断 7", "kind": "interrupt", "official": {"base": "Machine timer interrupt"}},
+      {"id": "mcause-irq-8", "label": "保留", "status": "standard", "codes": [8], "sub": "中断 8", "kind": "interrupt", "official": {"base": "Reserved"}},
+      {"id": "mcause-irq-9", "label": "监督级外部中断", "profile": "mandatory", "status": "standard", "codes": [9], "sub": "中断 9", "kind": "interrupt", "official": {"base": "Supervisor external interrupt"}},
+      {"id": "mcause-irq-10", "label": "虚拟监督级外部中断", "profile": "mandatory", "status": "standard", "codes": [10], "sub": "中断 10", "kind": "interrupt", "official": {"base": "Reserved", "hypervisor": "Virtual supervisor external interrupt"}},
+      {"id": "mcause-irq-11", "label": "机器外部中断", "status": "standard", "codes": [11], "sub": "中断 11", "kind": "interrupt", "official": {"base": "Machine external interrupt"}},
+      {"id": "mcause-irq-12", "label": "监督级客户外部中断", "status": "standard", "codes": [12], "sub": "中断 12", "kind": "interrupt", "official": {"base": "Reserved", "hypervisor": "Supervisor guest external interrupt"}, "detail": "H 分配了这一编号。是否提供 guest 外部中断线取决于 GEILEN；GEILEN 可以为零。"},
+      {"id": "mcause-irq-13", "label": "计数器溢出中断", "profile": "mandatory", "status": "standard", "codes": [13], "sub": "中断 13", "kind": "interrupt", "official": {"base": "Counter-overflow interrupt"}},
+      {"id": "mcause-irq-14-15", "label": "Reserved", "status": "standard", "codes": ["14–15"], "sub": "中断 14–15", "kind": "interrupt", "official": {"base": "Reserved"}},
+      {"id": "mcause-irq-≥16", "label": "指定给平台使用", "status": "standard", "codes": ["≥16"], "sub": "中断 ≥16", "kind": "interrupt", "official": {"base": "Designated for platform use"}}
+    ]},
+    {"id": "mcause-swchk", "label": "Software check 的 tval 子码", "detail": "同步异常 18 的 tval 提供检查子码。特权手册的 mtval 表定义 0（无补充信息）、2（landing pad）和 3（shadow stack）。", "status": "standard", "codes": [18], "sub": "异常 18 · tval 0 / 2 / 3", "kind": "exception", "children": [
+      {"id": "mcause-swchk-0", "label": "未提供信息", "detail": "寄存器没有提供额外的检查原因。", "status": "standard", "sub": "tval = 0"},
+      {"id": "mcause-swchk-2", "label": "Landing-pad fault（Zicfilp）", "detail": "启用 Zicfilp 时，要求 landing pad 的控制流检查失败可触发此子码。", "profile": "u64-option", "status": "standard", "sources": ["cfi", "profile"], "sub": "tval = 2"},
+      {"id": "mcause-swchk-3", "label": "Shadow-stack fault（Zicfiss）", "detail": "启用 Zicfiss 时，返回地址不匹配可触发此子码。", "profile": "u64-option", "status": "standard", "sources": ["cfi", "profile"], "sub": "tval = 3"},
+      {"id": "mcause-swchk-4", "label": "草案里的 tval=4", "detail": "Worlds 与 Memory Tagging 的公开草案各自讨论过数值 4。这个值在官方 ISA 手册 20260120 的 software-check 表中尚无定义。草案的字段和值以对应版本为准。", "profile": "not-in-profile", "status": "draft", "sources": ["worlds", "mtag"]}
+    ]}
+  ]},
+  {"id": "af", "label": "访问故障 · Access fault", "detail": "用于取指、加载和存储/AMO 访问故障。物理访问可能被 PMP 拒绝或违反 PMA。这也适用于页表遍历对 PTE 的隐式读取，以及硬件更新 A/D 位时对 PTE 的隐式写入。", "status": "standard", "codes": [1, 5, 7], "sources": ["machine"], "children": [
+    {"id": "af-pmp", "label": "PMP 物理内存保护", "detail": "PMP 是 M 级机制。基础 PMP 使用编号最小且匹配任一字节的条目；该条目需要覆盖这次内存操作的所有字节。实现支持分页且实现 PMP 时，M 级软件修改 PMP CSR 后须执行 SFENCE.VMA x0, x0。", "profile": "not-in-profile", "status": "standard", "sub": "pmpcfg / pmpaddr · R/W/X"},
+    {"id": "af-epmp", "label": "Smepmp 强化 PMP", "detail": "Smepmp 通过 mseccfg.MML、MMWP 和 RLB 修改 PMP 的 M 级保护策略、未命中策略和规则锁定行为，违规仍使用 access fault。", "profile": "not-in-profile", "status": "standard", "sources": ["smepmp"]},
+    {"id": "af-pma", "label": "PMA（特权本体，无标准 CSR）", "detail": "PMA 描述物理区域支持的访问类型和属性。支持的宽度、原子操作和缓存等属性取决于平台。精确报告的 PMA 违规使用 access fault。", "status": "platform", "children": [
+      {"id": "af-pma-rwx", "label": "Supported Access Type", "detail": "主存和 I/O 区域可以支持不同的访问宽度、未对齐行为与取指、读、写操作。CPU 通过平台约定获知这些属性。", "status": "platform"},
+      {"id": "af-pma-atom", "label": "Atomicity · MAG", "detail": "PMA 描述区域支持的原子操作，也可以提供未对齐原子性粒度。异常的选择见地址未对齐分支。", "status": "platform"},
+      {"id": "af-pma-cache", "label": "Cacheability / Coherence / Idempotency", "detail": "缓存性、一致性和幂等性是独立的物理属性。对非幂等 I/O 的重复访问可能产生额外副作用。", "status": "platform"},
+      {"id": "af-pma-imprec", "label": "精确 vs 不精确", "detail": "平台优先提供精确的 access fault。某些遗留总线难以精确关联故障和指令，平台可以采用不精确的总线错误中断。", "status": "platform"}
+    ]},
+    {"id": "af-walk", "label": "页表访问被 PMP / PMA 拒绝", "detail": "访问 PTE 或写回 A/D 位时违反 PMP/PMA，按原始访问类型报告 access fault。例如原始操作是取指，读 PTE 被拒时报告 1。PTE 可读但 V=0 时，取指报告 12。", "status": "standard", "codes": [1, 5, 7], "sources": ["supervisor"], "related": ["pf-walk", "gpf-twostage"]},
+    {"id": "af-mpt", "label": "Smmpt / MPT 域隔离", "detail": "Supervisor Domain Access Protection 草案用机器级保护表为 supervisor domain 约束物理内存访问。异常规则应与草案版本一并阅读。", "profile": "not-in-profile", "status": "draft", "sources": ["smmpt"], "sub": "Supervisor Domain Access Protection"},
+    {"id": "af-ss", "label": "Zicfiss 影子栈访问故障", "detail": "普通存储指令写影子栈页会触发 store/AMO access fault。部分影子栈指令的访问被明确归为存储/AMO 类，包括 SSPopChk 的隐式读取。", "profile": "u64-option", "status": "standard", "codes": [7], "sources": ["cfi"]},
+    {"id": "af-smcfiss", "label": "Smcfiss / Smucfiss / Sspmpss / Smpmpind", "detail": "公开提案把影子栈保护扩展到 M、M+U、SPMP 等环境。节点对应 PR 中的机制，具体异常优先级和虚拟化行为以草案为准。", "profile": "not-in-profile", "status": "draft", "sources": ["mcfi"]},
+    {"id": "af-smpmpmt", "label": "Smpmpmt", "detail": "公开提案通过 PMP 条目指定内存类型。它修改适用的内存属性；草案沿用已有访存故障编码。", "profile": "not-in-profile", "status": "draft", "sources": ["pmpmt"]},
+    {"id": "af-bus", "label": "总线 NACK / 下游错误", "detail": "下游设备或互连的拒绝如何反馈，由平台决定。精确映射到原始 hart 访问时可报告 access fault；异步通知有独立路径。", "status": "platform"}
+  ]},
+  {"id": "pf", "label": "页故障 · Page fault", "detail": "虚拟地址、页表项格式、页权限、超级页对齐和 A/D 策略均可能导致页故障。Sspmp 在适用的 Bare 场景复用这些编码。", "status": "standard", "codes": [12, 13, 15], "sources": ["supervisor"], "children": [
+    {"id": "pf-sv", "label": "分页模式 · Sv32 / Sv39 / Sv48 / Sv57", "detail": "satp 选择地址翻译模式。RVA23S64 要求 Sv39 和 Bare，Sv48、Sv57 为扩展选项。Sv32 是 RV32 的分页模式。", "status": "standard", "sources": ["supervisor", "profile"], "children": [
+      {"id": "pf-sum", "label": "SUM / MXR", "detail": "叶子 PTE 的 U、R/W/X 及有效特权级参与权限判定。SUM 影响 S 对 U 页的数据访问，MXR 允许加载可执行页。S 从 U=1 页取指仍会报页故障。", "profile": "mandatory", "status": "standard", "sub": "sstatus.SUM / MXR"},
+      {"id": "pf-ad", "label": "Svade · A/D 位触发页故障", "detail": "在 Svade 行为下，访问 A=0 的 PTE 或写入 D=0 的 PTE，按原始访问类型报告页故障。可选的 Svadu 允许硬件更新 A/D 位。", "profile": "mandatory", "status": "standard", "sources": ["supervisor", "svadu", "profile"]},
+      {"id": "pf-adu", "label": "Svadu · 硬件更新 A/D 位", "detail": "启用时，硬件按手册规则原子更新 PTE 的 A/D 位；写 PTE 若违反 PMP/PMA，仍按原访问类型报告 access fault。实现 Svadu 时，menvcfg.ADUE 与适用的 henvcfg.ADUE 控制相关阶段的行为。", "profile": "optional", "status": "standard", "sources": ["svadu", "hypervisor"], "related": ["af-walk"]},
+      {"id": "pf-walk", "label": "Walk 语义失败", "detail": "V=0、非法 PTE 编码、保留位违规、页表遍历耗尽或超级页 PPN 未按大小对齐，都可能按原始访问类型报告页故障。叶子权限判定还取决于实现并启用的扩展。", "profile": "mandatory", "status": "standard", "related": ["af-walk"]},
+      {"id": "pf-va", "label": "规范 VA", "detail": "在 Sv39 中，VA 的高 25 位必须与位 38 一致。Sv48 和 Sv57 分别以位 47 和 56 为符号扩展位。", "profile": "mandatory", "status": "standard"},
+      {"id": "pf-ext", "label": "Svnapot · Svpbmt", "detail": "Svnapot 支持 NAPOT 连续映射，Svpbmt 允许叶 PTE 指定内存类型，两者均为 RVA23S64 强制扩展。启用条件和保留编码按相应扩展解释。", "profile": "mandatory", "status": "standard"},
+      {"id": "pf-rsw", "label": "Svrsw60t59b · PTE 软件保留位", "detail": "扩展将 64 位 PTE 的 60–59 位交给软件使用，并要求实现忽略这些位。可配合目标实现的扩展列表解释这些位是软件字段还是保留位。", "profile": "not-in-profile", "status": "standard", "sources": ["ratified", "ptebits"]},
+      {"id": "pf-svvptc", "label": "Svvptc · PTE 从无效变为有效", "detail": "显式写入使 PTE 的 V 位从 0 变为 1 后，对可见该写入的 hart，之后的隐式读取将在有限时间内看到这次变化。保证限于 V 位从 0 到 1 的转换。", "profile": "optional", "status": "standard", "sources": ["svvptc"]}
+    ]},
+    {"id": "pf-sfence", "label": "SFENCE.VMA / SINVAL（相关、不产生 fault）", "detail": "SFENCE.VMA 为当前 hart 的显式页表写入与后续隐式访问建立顺序，并使匹配的地址翻译缓存项失效。写 satp 自身不隐含这些操作。Svinval 提供细粒度失效指令。", "profile": "mandatory", "status": "standard", "sources": ["supervisor", "profile"]},
+    {"id": "pf-spmp", "label": "SPMP（Sspmp）", "detail": "Sspmp v1.0 复用同步异常 12、13、15。在非虚拟化场景中，启用 SPMP 且 satp.MODE=Bare 时，SPMP 可以检查有效 S/U 访问。若同一访问同时违反 SPMP 和 PMP/PMA，报告 SPMP 异常。", "profile": "not-in-profile", "status": "standard", "codes": [12, 13, 15], "sources": ["spmp"], "sub": "Sspmp v1.0"},
+    {"id": "pf-vspmp", "label": "vSPMP 拒绝 → PF", "detail": "SPMP for Hypervisor v0.6 草案区分 VS 自己的保护检查与 HS 对客户访问的检查。VS 侧拦截走普通页故障路径。", "profile": "not-in-profile", "status": "draft", "sources": ["vspmp"], "sub": "v0.6 提案"},
+    {"id": "pf-pm", "label": "指针掩码", "detail": "指针掩码改变后续翻译或保护检查所见的有效地址。RVA23S64 强制 Ssnpm，Sspm 为扩展选项。掩码转换本身没有专用异常编码。", "profile": "mandatory", "status": "standard", "sources": ["pointer"]},
+    {"id": "pf-ukte", "label": "Svukte · 地址无关的故障时延", "detail": "Svukte 提案为特定低特权访问定义高半地址的提前拒绝和时延约束。异常沿用普通页故障编码。", "profile": "not-in-profile", "status": "draft", "sources": ["svukte"], "children": [
+      {"id": "pf-ukte-ctrl", "label": "控制位", "detail": "提案以 senvcfg.UKTE 控制相关 U 模式行为，并定义 hstatus.HUKTE 来控制部分虚拟机访存指令的行为。", "profile": "not-in-profile", "status": "draft"},
+      {"id": "pf-ukte-when", "label": "受检查的访问", "detail": "分页开启、适用的 UKTE 置位且有效特权为 U/VU 时，取指和显式访存进入检查范围。U 模式执行 HLV、HLVX 或 HSV 时使用 HUKTE 条件。", "profile": "not-in-profile", "status": "draft"},
+      {"id": "pf-ukte-what", "label": "高半地址与页故障", "detail": "适用访问的虚拟地址达到 2^(SXLEN−1) 时，按原始访问类型报告页故障，即使页表权限本来允许该访问。", "profile": "not-in-profile", "status": "draft", "codes": [12, 13, 15]},
+      {"id": "pf-ukte-when-check", "label": "时延约束", "detail": "草案要求这类故障的时延与故障虚拟地址无关，并给出在访问页表或翻译缓存前识别高半地址的实现思路。", "profile": "not-in-profile", "status": "draft"}
+    ]}
+  ]},
+  {"id": "gpf", "label": "客户页故障 · Guest-page fault", "detail": "H 扩展使用 20、21、23 报告 G-stage 页故障。G-stage 也检查 VS-stage 页表遍历发出的隐式访问，因此 faulting GPA 可能指向客户页表项。", "profile": "mandatory", "status": "standard", "codes": [20, 21, 23], "sources": ["hypervisor"], "related": ["gpf-tval"], "children": [
+    {"id": "gpf-twostage", "label": "两级翻译分类（特权本体）", "detail": "VS-stage 将 GVA 翻译为 GPA，G-stage 将 GPA 翻译为 SPA。VS-stage 页表规则失败通常报告普通页故障。G-stage 页表规则失败即使发生在 VS 页表的隐式访问上，也仍按原始访问类型报告 guest-page fault。", "profile": "mandatory", "status": "standard", "codes": [20, 21, 23], "sub": "GVA → GPA → SPA"},
+    {"id": "gpf-tval", "label": "用 htval / htinst 辨别故障层", "detail": "陷阱进 HS 时，stval 可记录出错的 GVA，htval 可记录 GPA 右移两位后的值。若 G-stage 拦截 VS 页表读取，所记录的 GPA 指向客户 PTE。可用非零 htinst 中的伪指令辅助辨别；普通 H 允许 htval 写零，RVA23S64 的 Shtvala 对规范允许记录的情况增加了保证。进 M 时使用 mtval、mtval2 和 mtinst。", "codes": [20, 21, 23], "profile": "mandatory", "status": "standard", "sources": ["hypervisor", "profile"], "related": ["deleg-csr"], "sub": "stval / htval / htinst"},
+    {"id": "gpf-g", "label": "G-stage Sv*x4", "detail": "hgatp 控制 GPA 到 SPA 的翻译。G-stage 的页权限检查统一按 U 模式处理。Sv39x4 等模式扩大根页表来容纳额外的两位 GPA。", "profile": "mandatory", "status": "standard"},
+    {"id": "gpf-vs", "label": "VS-stage vsatp", "detail": "vsatp 控制 GVA 到 GPA 的翻译。VS 的 SUM 用于 VS-stage；HS 的 MXR 也可影响 VS 和 G 两级的读取判断，VS 的 MXR 只影响 VS-stage。", "profile": "mandatory", "status": "standard"},
+    {"id": "gpf-hstatus", "label": "hstatus · SPVP / HU / VSBE / VSXL", "detail": "SPVP 为 HLV/HLVX/HSV 指定用于翻译的客户特权级，HU 控制 U 模式能否使用这些指令。VSBE 与 VSXL 分别涉及 VS 的端序与宽度。", "profile": "mandatory", "status": "standard"},
+    {"id": "gpf-hlv", "label": "HLV / HLVX / HSV", "detail": "这组指令按指定的 VS/VU 身份执行虚拟机内存访问，可能发生两阶段翻译故障。HLVX 仍是加载类访问，但翻译时会检查执行权限。", "profile": "mandatory", "status": "standard"},
+    {"id": "gpf-hfence", "label": "HFENCE.VVMA / GVMA（相关、不产生 fault）", "detail": "HFENCE.VVMA 与 HFENCE.GVMA 分别对 VS-stage 和 G-stage 的翻译建立所需顺序，并使匹配的缓存项失效。改变 hgatp.MODE 时要按 H 章节的规则执行 HFENCE.GVMA。", "profile": "mandatory", "status": "standard"},
+    {"id": "gpf-spmp", "label": "Sspmp 与 Shbare", "detail": "已批准的 Sspmp 与 Shbare 配合时，V=1 且 hgatp.MODE=Bare 的 VS/VU 访问可受 SPMP 约束。拒绝时复用 20、21、23。该场景下 G-stage 分页关闭。", "profile": "not-in-profile", "status": "standard", "codes": [20, 21, 23], "sources": ["spmp"], "sub": "Sspmp v1.0 与 Shbare"},
+    {"id": "gpf-vspmp", "label": "SPMP for Hypervisor", "detail": "SPMP for Hypervisor v0.6 草案中，仅由 HS 一侧的 SPMP 拒绝可走 guest-page fault 路径。", "profile": "not-in-profile", "status": "draft", "sources": ["vspmp"], "sub": "v0.6 提案"},
+    {"id": "gpf-sspmpss", "label": "Sspmpss @ VS/VU", "detail": "SPMP 影子栈草案为 VS/VU 重新解释特定 SPMP 权限组合，并讨论复用 guest-page fault 的情形。", "profile": "not-in-profile", "status": "draft", "sources": ["mcfi"]}
+  ]},
+  {"id": "mis", "label": "地址未对齐 · Address misaligned", "detail": "取指地址未对齐为 0，加载为 4，存储/AMO 为 6。数据访问的未对齐异常相对页故障、访问故障的优先级由实现选择。", "status": "standard", "codes": [0, 4, 6], "sources": ["machine"], "children": [
+    {"id": "mis-ctrl", "label": "控制流目标未对齐", "detail": "已执行的跳转或分支目标违反 IALIGN 时，异常归于该跳转或分支指令。RVA23S64 要求 C 扩展，采用 IALIGN=16 时，这类异常无法由标准跳转/分支的目标地址触发。", "status": "standard", "codes": [0]},
+    {"id": "mis-ls", "label": "Load / Store / AMO 未对齐", "detail": "同一次未对齐的数据访问可能还会遇到页故障或访问故障。具体优先级依实现而异；某些拆分访问在故障前可能已有部分写入生效。", "status": "standard", "codes": [4, 6]},
+    {"id": "mis-mag", "label": "PMA MAG", "detail": "在支持 MAG 的区域内，满足粒度与指令类别要求的未对齐操作可以原子完成。MAG 不适用于 LR/SC；RVA23U64 的相关发展选项名为 Zama16b。", "profile": "u64-option", "status": "standard"},
+    {"id": "mis-pbmt", "label": "Svpbmt IO 页（与 Smpmpmt MT=IO）", "detail": "Svpbmt 允许叶 PTE 请求 I/O 类型。I/O 区域的未对齐访问是否被支持取决于平台和实现。", "profile": "mandatory", "status": "standard", "sources": ["svpbmt"]},
+    {"id": "mis-ss", "label": "Zicfiss 强制对齐", "detail": "对 SSPUSH、C.SSPUSH、SSPOPCHK、C.SSPOPCHK，未按 XLEN 对齐的影子栈指针触发 store/AMO access fault（7）。", "profile": "u64-option", "status": "standard", "codes": [7], "sources": ["cfi"], "related": ["af-ss"]}
+  ]},
+  {"id": "ill", "label": "非法指令与虚拟指令", "detail": "2 是非法指令，22 是 H 在虚拟化环境中定义的虚拟指令异常。对 22 的判定还要考虑该指令在适用的 HS 语境是否本可执行。", "status": "standard", "codes": [2, 22], "sources": ["machine", "hypervisor"], "children": [
+    {"id": "ill-misa", "label": "misa 关闭扩展", "detail": "在 misa 中关闭相关可写扩展位可使扩展指令按未实现处理。misa 是 M 级 CSR，位能否写入以及可写组合依实现而异。", "status": "standard"},
+    {"id": "ill-fsvsxs", "label": "FS / VS / XS = Off", "detail": "FS=Off 或 VS=Off 会使相关浮点或向量指令触发非法指令。在 V=1 时，sstatus 与 vsstatus 对应字段中任一为 Off 即适用。XS 汇总其他扩展状态。", "status": "standard"},
+    {"id": "ill-csr", "label": "CSR 特权 / 缺失", "detail": "访问未实现或权限不足的 CSR，或尝试写只读 CSR，通常触发非法指令。H 为符合条件的虚拟化拦截规定虚拟指令异常。", "profile": "mandatory", "status": "standard"},
+    {"id": "ill-stateen", "label": "Smstateen", "detail": "stateen 提供跨特权级的状态访问控制。RVA23S64 的 Sha 要求 Ssstateen 中的 S/H 视图；mstateen 是 M 级接口。", "profile": "mandatory", "status": "standard", "sources": ["stateen", "profile"]},
+    {"id": "ill-env", "label": "*envcfg 门控", "detail": "具体扩展通过环境配置 CSR 启用功能。下级未获许可时表现取决于扩展，例如 CFI 指令门控与 Sstc 对时间比较 CSR 的门控各有自己的规则。", "status": "standard", "children": [
+      {"id": "ill-cbo", "label": "Zicbom / Zicboz · 缓存块操作", "detail": "CBIE 控制 CBO.INVAL，CBCFE 控制 CBO.CLEAN/CBO.FLUSH，CBZE 控制 CBO.ZERO。指令受门控时按当前特权和虚拟化状态判断 2 或 22。已获准执行的 CBO.ZERO 若在地址翻译或物理访问上失败，则采用存储类故障编码。", "profile": "mandatory", "status": "standard", "codes": [2, 7, 15, 22, 23], "sources": ["cmo", "hypervisor"], "related": ["af", "pf", "gpf"]}
+    ]},
+    {"id": "ill-tvm", "label": "TVM / TW / TSR · VT*", "detail": "mstatus.TVM/TW/TSR 控制特定低特权操作。H 还提供 hstatus.VTVM/VTW/VTSR，用于符合条件的 VS 操作。", "status": "standard", "children": [
+      {"id": "ill-tvm-satp", "label": "TVM=1", "detail": "TVM=1 时，S/HS 访问 satp 或执行 SFENCE.VMA、SINVAL.VMA 触发非法指令；在 HS 访问 hgatp 或执行 HFENCE.GVMA 也会受该位限制。", "status": "standard"},
+      {"id": "ill-tw", "label": "TW=1", "detail": "TW 可在实现定义的有限时间后让低特权 WFI 触发非法指令；该时间可为零。VS 的虚拟化拦截还要看 VTW。", "status": "standard"},
+      {"id": "ill-tsr", "label": "TSR=1", "detail": "TSR=1 时，S/HS 执行 SRET 触发非法指令。在 VS 中该位不参与判定，改由 VTSR 等 H 规则控制。", "status": "standard"},
+      {"id": "ill-vt", "label": "VTVM / VTW / VTSR", "detail": "符合条件的 VS 指令或 CSR 访问可因 VTVM、VTW 或 VTSR 触发虚拟指令异常（22）。VTW 的 WFI 路径还要考虑 mstatus.TW。", "profile": "mandatory", "status": "standard"}
+    ]},
+    {"id": "ill-counteren", "label": "*counteren", "detail": "mcounteren、hcounteren 和 scounteren 限制较低特权级读取计数器及时间 CSR。具体是哪一层拒绝，影响报告 2 还是 22。", "status": "standard"},
+    {"id": "ill-worlds", "label": "Worlds CSR 门控", "detail": "Worlds 提案含 WID 相关 CSR 访问控制，权限不足可沿用非法指令或虚拟指令规则。", "profile": "not-in-profile", "status": "draft", "sources": ["worlds"]}
+  ]},
+  {"id": "bp", "label": "断点与调试入口", "detail": "Breakpoint 是同步异常 3。进入 Debug Mode 是单独的调试控制流；硬件触发器还可能执行 trace 动作。", "status": "standard", "codes": [3], "sources": ["debug"], "children": [
+    {"id": "bp-ebreak", "label": "EBREAK", "detail": "EBREAK/C.EBREAK 通常产生 breakpoint。实现并启用相应 dcsr.ebreak* 时，可直接进入 Debug Mode。", "status": "standard", "codes": [3]},
+    {"id": "bp-trig", "label": "Sdtrig mcontrol6", "detail": "Sdtrig 的 action=0 触发 breakpoint；action=1 进入 Debug Mode，需满足 dmode 等要求并实现 Sdext；其他 action 另有定义。", "profile": "optional", "status": "standard", "codes": [3], "related": ["bp-dmode"]},
+    {"id": "bp-sdsec", "label": "Sdsec 外部调试安全", "detail": "Sdsec 草案定义外部调试授权及失败报告。调试模块报告的安全错误属于调试接口；hart 的 breakpoint 与 CSR 访问异常另有各自语义。", "profile": "not-in-profile", "status": "draft", "sources": ["sdsec"]},
+    {"id": "bp-dmode", "label": "Debug Mode 入口", "detail": "Debug Mode 可由外部请求、配置后的 EBREAK 或硬件触发器等方式进入。调试现场使用 dpc 和 dcsr 等寄存器。", "status": "standard", "children": [
+      {"id": "bp-dcsr", "label": "dcsr / dpc / dscratch*", "detail": "dpc 保存恢复执行用的地址；dcsr 记录进入 Debug Mode 的原因、原特权级及其他调试控制状态。", "status": "standard"},
+      {"id": "bp-halt", "label": "halt / resethaltreq", "detail": "调试模块可用 haltreq 请求停止 hart，也可请求 hart 复位后立即停止。进入 Debug Mode 的原因由 dcsr 记录。", "status": "standard"}
+    ]}
+  ]},
+  {"id": "sw", "label": "软件检查与硬件错误", "detail": "同步异常 18 表示软件检查，19 表示硬件错误。两者可以出现在相同的访存或取指场景，但排查时应分别读取相应规范定义的现场。", "status": "standard", "codes": [18, 19], "sources": ["machine", "cfi"], "children": [
+    {"id": "sw-lp", "label": "Zicfilp", "detail": "启用 Zicfilp 时，要求 landing pad 的控制流检查失败可触发 18，tval=2。生效条件取决于特权级和 LPE 等配置。", "profile": "u64-option", "status": "standard", "codes": [18], "sources": ["cfi", "profile"], "related": ["mcause-swchk-2"]},
+    {"id": "sw-ss", "label": "Zicfiss", "detail": "启用 Zicfiss 时，影子栈校验发现返回地址不匹配可触发 18，tval=3。影子栈页的访问权限和指针对齐违规另有编码。", "profile": "u64-option", "status": "standard", "codes": [18], "sources": ["cfi", "profile"], "related": ["mcause-swchk-3", "af-ss"]},
+    {"id": "sw-worlds", "label": "RISC-V Worlds", "detail": "Worlds 草案用 WID 标记事务所属的隔离域。草案讨论非法 WID 的软件检查；互连上的 WID 拒绝属于独立的平台路径。", "profile": "not-in-profile", "status": "draft", "sources": ["worlds"], "related": ["ext-wid", "mcause-swchk-4"]},
+    {"id": "sw-mt", "label": "RISC-V Memory Tagging", "detail": "Memory Tagging 草案用指针标签与内存标签的比较约束数据访问，讨论用 software check 表示不匹配。子码与门控以所引用草案为准。", "profile": "not-in-profile", "status": "draft", "sources": ["mtag"], "related": ["mcause-swchk-4"], "children": [
+      {"id": "sw-mt-store", "label": "tag 存储本身", "detail": "草案还定义标签访问自身的翻译与物理保护约束，可能沿用页故障或访问故障。", "profile": "not-in-profile", "status": "draft"},
+      {"id": "sw-mt-gate", "label": "门控", "detail": "草案定义特权环境配置和页属性，用于选择地址标记和标签检查行为。", "profile": "not-in-profile", "status": "draft"}
+    ]},
+    {"id": "sw-hw", "label": "硬件错误 · Hardware error", "detail": "实现可以用 19 对取指或显式/隐式访存过程中遇到的不可恢复数据损坏进行同步报告。是否采用这条路径取决于实现和平台 RAS。", "status": "standard", "codes": [19]}
+  ]},
+  {"id": "deleg", "label": "陷阱委托与现场寄存器", "detail": "按目标特权级读相应的 cause、epc、tval。委托寄存器控制可委托事件的处理级别；虚拟中断进入 VS 时另外采用 VS 编码。", "status": "standard", "sources": ["machine", "hypervisor"], "children": [
+    {"id": "deleg-csr", "label": "按陷阱落点读取现场", "detail": "M 使用 mcause、mepc、mtval；S/HS 使用 scause、sepc、stval；VS 使用 vscause、vsepc、vstval。epc 记录指令地址；tval 的含义随异常变化，可能是地址、指令、软件检查子码或 0。RVA23S64 的 Sstvala 与 Sha 中的 Shvstvala 进一步规定了特定异常的值。", "profile": "mandatory", "status": "standard", "sources": ["machine", "supervisor", "hypervisor", "profile"], "related": ["gpf-tval", "mcause-swchk"]},
+    {"id": "deleg-m", "label": "medeleg / mideleg", "detail": "medeleg 控制同步异常从 M 向 S/HS 的委托，mideleg 控制中断委托。陷阱不会从更高特权级下行；部分位固定，例如 M-mode ECALL 和 double trap 的 medeleg 位。", "status": "standard"},
+    {"id": "deleg-h", "label": "hedeleg / hideleg", "detail": "hedeleg/hideleg 控制部分事件由 HS 向 VS 再委托。Guest-page fault 只能在 M 或 HS 处理。虚拟软件、定时器、外部中断进 VS 时分别重编码为 1、5、9。", "profile": "mandatory", "status": "standard"},
+    {"id": "double", "label": "双重陷阱 · Double trap", "detail": "启用双重陷阱扩展后，陷阱处理入口可检测异常嵌套。Ssdbltrp 的 S/HS 路径可以向 M 报告 16；M 级 Smdbltrp 的处理使用 RNMI 或 critical-error 路径。", "codes": [16], "status": "standard", "profile": "not-in-profile", "sources": ["ssdbltrp", "machine"], "children": [
+      {"id": "double-s", "label": "Ssdbltrp：S / HS 入口", "detail": "若新陷阱本应进入 S/HS 而 sstatus.SDT 已置位，处理会上送 M，mcause=16，mtval2 保存原本要写入 mcause 的值。虚拟化下还需查 vsstatus.SDT 和 H 的陷阱入口规则。", "codes": [16], "status": "standard", "sources": ["supervisor", "hypervisor"], "related": ["mcause-sync-16"]},
+      {"id": "double-m", "label": "Smdbltrp：M 入口", "detail": "新陷阱在 mstatus.MDT 已置位时抵达 M 级，若实现 Smrnmi 且 NMIE=1 则走 RNMI；否则进入 critical-error 状态。", "status": "standard", "sources": ["machine"]}
+    ]}
+  ]},
+  {"id": "eff", "label": "有效特权与地址解释", "detail": "先区分当前特权级和此次访问的有效特权级，再判断采用哪些地址翻译、权限、地址宽度与端序规则。", "status": "standard", "sources": ["machine", "hypervisor"], "children": [
+    {"id": "eff-mprv", "label": "mstatus.MPRV + MPP", "detail": "MPRV=1 时，显式加载和存储按 MPP 指示的特权级进行地址翻译、保护、地址宽度和端序判断。实现 H 时还考虑 MPV。MPRV 对取指无影响。", "status": "standard"},
+    {"id": "eff-sum-mxr", "label": "mstatus/sstatus.SUM · MXR", "detail": "SUM 控制 S 模式能否对 U=1 的页做数据访问。S 模式始终无权从 U=1 的页取指。MXR 允许从仅有执行权限的页加载，两者都不改变 PMP/PMA 检查。", "profile": "mandatory", "status": "standard", "sources": ["machine", "supervisor", "hypervisor"]},
+    {"id": "eff-xlen", "label": "misa.MXL · mstatus.SXL/UXL · hstatus.VSXL", "detail": "MXLEN、SXLEN、UXLEN 和 VSXLEN 描述各特权级的寄存器宽度。较窄 XLEN 下，取指地址和访存有效地址按该 XLEN 截断。RVA23S64 要求支持 UXLEN=64。", "status": "standard"},
+    {"id": "eff-be", "label": "MBE / SBE / UBE · hstatus.VSBE", "detail": "取指使用小端。显式数据访问使用对应有效特权级的端序；S/HS 和 VS 的隐式页表访问分别使用 SBE 和 VSBE。RVA23S64 的基础 ISA 是小端，具体可切换性由实现决定。", "status": "standard", "sources": ["machine", "hypervisor"]},
+    {"id": "eff-mode", "label": "特权模式 M/S/U · V + HS/VS/VU", "detail": "V=0 时，S 在 H 扩展下称为 HS。V=1 时，S/U 分别成为 VS/VU，并可能启用两阶段地址翻译。", "status": "standard"}
+  ]},
+  {"id": "ext", "label": "设备、互连与平台 ABI", "detail": "从设备侧开始查时，先确认故障记录来自 IOMMU、IOPMP、互连还是软件 ABI，再判断是否存在 hart trap。", "status": "standard", "sources": ["iommu"], "children": [
+    {"id": "ext-wid", "label": "Worlds 互连检查", "detail": "Worlds 的互连检查面向携带 WID 的物理事务。错误如何送回事务发起者，由平台路径决定。", "profile": "not-in-profile", "status": "draft", "sources": ["worlds"]},
+    {"id": "ext-iopmp", "label": "IOPMP", "detail": "IOPMP 草案用请求者标识和规则检查总线主设备的物理访问，并定义错误记录。是否表现为 hart 可见的访问故障取决于发起者和平台。", "profile": "not-in-profile", "status": "draft", "sources": ["iopmp"], "related": ["ext-iommu"]},
+    {"id": "ext-cove", "label": "CoVE / CoVE-IO", "detail": "CoVE 和 CoVE-IO 工作项定义机密虚拟机与设备的接口。软件返回值和 hart 的异常编码属于不同接口。", "profile": "not-in-profile", "status": "draft", "sources": ["cove", "coveio"]},
+    {"id": "ext-iommu", "label": "IOMMU 设备侧故障队列", "detail": "IOMMU 可将 DMA 请求的故障记入 fault queue。记录有自己的 CAUSE、设备标识和地址字段；即使 CAUSE 数值与 hart 异常碰巧相同，也应先查 IOMMU 的记录格式。", "status": "standard", "sources": ["iommu"], "related": ["ext-iopmp"]}
+  ]},
+  {"id": "irq", "label": "异步中断与平台通知", "detail": "异步中断可能来自定时器、软件、外部设备或平台错误通知。先看 Interrupt 位，再解释数值编码。", "status": "standard", "sources": ["machine"], "children": [
+    {"id": "irq-ext", "label": "外部中断 / 平台 IRQ", "detail": "外设或互连错误可能经平台中断上报，具体来源、路由和寄存器由所用平台规定。", "status": "platform"},
+    {"id": "irq-plic", "label": "PLIC 外部中断通知", "detail": "PLIC 向本地已启用该源、且源优先级高于目标阈值的目标上下文发出通知；共享中断的具体处理还涉及 claim/complete。", "status": "standard", "sources": ["plic"]},
+    {"id": "irq-bus", "label": "Imprecise bus-error interrupt", "detail": "某些总线错误不能精确归因于一条指令。平台可用总线错误中断报告，编码和错误记录查平台手册。", "status": "platform"}
+  ]},
+  {"id": "custom", "label": "定制同步异常编码", "detail": "同步异常 24–31 与 48–63 指定供定制用途。具体语义与优先级查实现文档；32–47 是保留给标准用途的范围。", "status": "standard", "codes": ["24–31", "48–63"], "sources": ["machine"]},
+  {"id": "cheri", "label": "CHERI 能力异常", "detail": "CHERI 草案增加能力边界、权限、标签等检查，并提出同步异常 32–36。特权手册 20260120 仍把 32–47 列为标准保留区。", "profile": "not-in-profile", "status": "draft", "codes": [32, 33, 34, 35, 36], "sources": ["cheri"], "sub": "公开草案 · 32–36", "children": [
+    {"id": "cheri-cause", "label": "CHERI 草案的异常编码", "detail": "草案按取指、加载和存储/AMO 区分能力访问故障，并定义能力加载故障与存储/AMO 页故障。", "profile": "not-in-profile", "status": "draft", "children": [
+      {"id": "mcause-cheri-32", "label": "CHERI 取指访问故障", "detail": "取指使用的 PC capability 未通过标签、权限、边界等能力检查时，可报告 32。", "status": "draft", "codes": [32]},
+      {"id": "mcause-cheri-33", "label": "CHERI 加载访问故障", "detail": "用于加载的授权能力未通过能力检查，可报告 33。", "status": "draft", "codes": [33]},
+      {"id": "mcause-cheri-34", "label": "CHERI 存储/AMO 访问故障", "detail": "用于存储或 AMO 的授权能力未通过能力检查，可报告 34。", "status": "draft", "codes": [34]},
+      {"id": "mcause-cheri-35", "label": "CHERI Load Capability Fault", "detail": "Svyrg 的能力读代际检查可以在加载时报告 35。该异常可能取决于读出的能力标签，判定在地址翻译和物理检查之后。", "status": "draft", "codes": [35]},
+      {"id": "mcause-cheri-36", "label": "CHERI Store/AMO Page Fault", "detail": "Svyrg 的能力写入与脏位跟踪可在地址翻译阶段报告 36。", "status": "draft", "codes": [36]}
+    ]},
+    {"id": "cheri-when", "label": "检查时机", "detail": "能力标签、密封、权限和边界检查与显式访存的翻译前阶段相关。36 可能在翻译期间出现；35 可能取决于已加载能力的标签，检查在地址翻译和物理权限检查成功之后。", "profile": "not-in-profile", "status": "draft"},
+    {"id": "cheri-mis", "label": "能力未对齐", "detail": "草案对未对齐的能力加载与存储/AMO 使用普通 access fault 5、7。", "profile": "not-in-profile", "status": "draft"},
+    {"id": "cheri-asr", "label": "PCC 缺 ASR", "detail": "草案中 PCC 缺少 Access System Registers（ASR）权限时，受此权限约束的系统指令会产生非法指令异常。", "profile": "not-in-profile", "status": "draft"},
+    {"id": "cheri-ctrl", "label": "控制", "detail": "RVY 及其特权扩展定义能力模式和各特权级的启用控制。处于演进中的可选扩展和 H 集成需与具体版本一并阅读。", "profile": "not-in-profile", "status": "draft"}
+  ]}
+]}
+  </script>
+</body>
+</html>

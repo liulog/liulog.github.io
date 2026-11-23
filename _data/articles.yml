@@ -1,3 +1,9 @@
+- title: RISC-V 陷阱与访问控制
+  url: /riscv-ext.html
+  category: architecture
+  label: 计算机体系结构
+  format: 指南与交互索引
+  description: 从异常编码定位 PMP、页表、两阶段翻译与指令检查，查阅 RVA23S64 和相关扩展。
 - title: 安全四大顶会与投稿时间
   url: /security-conferences.html
   category: kernel
