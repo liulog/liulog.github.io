@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="从 RISC-V 异常编码定位权限检查环节，查阅 PMP、页表、两阶段翻译、RVA23S64 与相关扩展。">
-  <meta name="theme-color" content="#102a2a">
+  <meta name="theme-color" content="#e9f1e9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101f20" media="(prefers-color-scheme: dark)">
   <title>RISC-V 陷阱与访问控制 · liu.log</title>
-  <link rel="stylesheet" href="./assets/riscv-trap.css?v=canvas-1">
-  <script src="./assets/riscv-trap.js?v=canvas-1" defer></script>
+  <link rel="stylesheet" href="./assets/riscv-trap.css?v=canvas-2">
+  <script src="./assets/riscv-trap.js?v=canvas-2" defer></script>
 </head>
 <body>
   <a class="skip" href="#tree-viewport">跳到交互树</a>
@@ -15,8 +16,10 @@
     <noscript><p>交互树需要 JavaScript。也可查阅<a href="./riscv-ext.html">阅读指南与异常对照表</a>。</p></noscript>
     <div id="explorer" hidden>
       <form id="filters" class="toolbar" role="search" aria-label="搜索异常与机制">
-        <h1>RISC-V 陷阱树</h1>
-        <input id="query" type="search" aria-label="搜索关键词或异常编码" placeholder="搜索 PMP、cause 13" autocomplete="off">
+        <h1><span>RISC-V</span> 陷阱树</h1>
+        <label class="search-box">
+          <input id="query" type="search" aria-label="搜索关键词或异常编码" placeholder="搜索 PMP、cause 13" autocomplete="off">
+        </label>
         <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-controls">筛选</button>
         <a class="guide-link" href="./riscv-ext.html">阅读指南</a>
         <div id="filter-controls" class="filter-controls">

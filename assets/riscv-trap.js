@@ -83,11 +83,11 @@
     zoomOut: document.getElementById("zoom-out")
   };
 
-  const nodeWidth = 204;
-  const nodeHeight = 48;
-  const rowStep = 58;
+  const nodeWidth = 220;
+  const nodeHeight = 54;
+  const rowStep = 63;
   const padding = 26;
-  const canvasInset = 64;
+  const canvasInset = 78;
   const minZoom = .2;
   const maxZoom = 1.5;
   const entries = new Map();
@@ -189,6 +189,7 @@
     const card = element("div", { className: "tree-node" });
     card.dataset.tone = entry.tone;
     card.dataset.node = id;
+    card.classList.toggle("branch-node", entry.parent?.id === "root");
     card.classList.toggle("is-match", Boolean(hits?.has(id)));
     card.style.left = x + "px";
     card.style.top = (y - nodeHeight / 2) + "px";
@@ -196,7 +197,7 @@
     const select = element("button", { type: "button", className: "node-select", title: node.label });
     select.setAttribute("aria-controls", "detail");
     select.append(element("span", { className: "node-label", textContent: title }));
-    const meta = node.sub || node.codes?.join(" / ");
+    const meta = id === "root" ? "同步异常 / 中断" : node.sub || node.codes?.join(" / ");
     if (meta) select.append(element("span", { className: "node-meta", textContent: meta }));
     select.addEventListener("click", () => {
       detailOpen = true;
@@ -291,6 +292,7 @@
       (ui.world.offsetLeft - ui.viewport.scrollLeft) * ratio, (canvasInset - ui.viewport.scrollTop) * ratio);
     const style = getComputedStyle(ui.stage);
     const neutral = style.getPropertyValue("--wire").trim();
+    const portFill = style.getPropertyValue("--map-surface").trim();
     const tones = Object.fromEntries(["encoding", "memory", "execution", "platform"].map(tone =>
       [tone, style.getPropertyValue("--" + tone).trim()]
     ));
@@ -298,26 +300,47 @@
     function stroke(color, thickness, coords) {
       context.strokeStyle = color;
       context.lineWidth = thickness;
+      context.lineCap = "round";
+      context.lineJoin = "round";
       context.beginPath();
       context.moveTo(...coords[0]);
-      for (const vertex of coords.slice(1)) context.lineTo(...vertex);
+      for (let i = 1; i < coords.length - 1; i++) {
+        const [x, y] = coords[i];
+        const [nx, ny] = coords[i + 1];
+        const [px, py] = coords[i - 1];
+        const radius = Math.min(13, Math.hypot(x - px, y - py) / 2, Math.hypot(nx - x, ny - y) / 2);
+        context.arcTo(x, y, nx, ny, radius);
+      }
+      context.lineTo(...coords.at(-1));
       context.stroke();
     }
     for (const point of points.values()) {
       if (!point.children.length) continue;
       const start = point.x + nodeWidth;
       const fork = start + (columnStep - nodeWidth) * .55;
-      stroke(neutral, 1.3, [[start, point.y], [fork, point.y]]);
+      const bend = y => Math.min(12, Math.abs(point.y - y) / 2);
+      stroke(neutral, 1.6, [[start, point.y], [fork, point.y]]);
       if (point.children.length > 1) {
-        stroke(neutral, 1.3, [[fork, point.children[0].y], [fork, point.children.at(-1).y]]);
+        const first = point.children[0].y;
+        const last = point.children.at(-1).y;
+        stroke(neutral, 1.6, [[fork, first + bend(first)], [fork, last - bend(last)]]);
       }
       for (const child of point.children) {
         const color = tones[child.entry.tone] || neutral;
         const selected = trail.has(child.entry.id);
-        const route = selected
-          ? [[start, point.y], [fork, point.y], [fork, child.y], [child.x, child.y]]
-          : [[fork, child.y], [child.x, child.y]];
-        stroke(color, selected ? 2.5 : 1.45, route);
+        const rise = child.y - point.y;
+        const connector = [[fork, child.y], [child.x, child.y]];
+        if (selected && rise) connector.unshift([start, point.y], [fork, point.y]);
+        else if (selected) connector.unshift([start, point.y]);
+        else if (rise) connector.unshift([fork, child.y - Math.sign(rise) * bend(child.y) * 2]);
+        stroke(color, selected ? 3 : 1.65, connector);
+        context.beginPath();
+        context.arc(child.x - 2, child.y, selected ? 4 : 3.4, 0, Math.PI * 2);
+        context.fillStyle = selected ? color : portFill;
+        context.fill();
+        context.lineWidth = 1.5;
+        context.strokeStyle = color;
+        context.stroke();
       }
     }
   }
@@ -397,10 +420,12 @@
   }
 
   function updateSelection() {
+    const parents = new Set(ancestors(entries.get(active)).slice(0, -1).map(entry => entry.id));
     for (const [id, { card, select }] of buttons) {
       if (id === active) select.setAttribute("aria-current", "true");
       else select.removeAttribute("aria-current");
       card.classList.toggle("is-selected", id === active);
+      card.classList.toggle("is-on-path", parents.has(id));
     }
     renderDetail();
     schedulePaint();
@@ -609,10 +634,12 @@
   const columnSpacing = () => Math.max(254, Math.min(560, Math.round((ui.stage.clientWidth - 350) / 2)));
   columnStep = columnSpacing();
   zoom = Math.min(1, ui.viewport.clientWidth / (columnStep + nodeWidth + padding * 2));
+  if (ui.stage.clientWidth >= 1024) expanded.add("bp");
   const initial = hashId();
   const direct = initial !== "root" && entries.has(initial);
   navigate(direct ? initial : "root", { push: false, focus: direct });
-  if (initial === "root" && compact.matches) revealNode("root");
+  const rootBottom = (points.get("root").y + nodeHeight / 2) * zoom + canvasInset;
+  if (!direct && rootBottom > ui.viewport.clientHeight - 60) revealNode("root");
   new ResizeObserver(() => {
     const step = columnSpacing();
     if (step !== columnStep) {
