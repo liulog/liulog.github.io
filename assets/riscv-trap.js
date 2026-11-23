@@ -68,9 +68,7 @@
     world: document.getElementById("tree-world"),
     canvas: document.getElementById("map-wires"),
     map: document.getElementById("map-content"),
-    path: document.getElementById("map-path"),
     panel: document.getElementById("detail"),
-    jump: document.querySelector(".detail-jump"),
     form: document.getElementById("filters"),
     query: document.getElementById("query"),
     status: document.getElementById("status-filter"),
@@ -82,33 +80,32 @@
     expand: document.getElementById("expand-all"),
     collapse: document.getElementById("collapse-all"),
     zoomIn: document.getElementById("zoom-in"),
-    zoomOut: document.getElementById("zoom-out"),
-    zoomLevel: document.getElementById("zoom-level"),
-    fit: document.getElementById("fit-tree"),
-    resetZoom: document.getElementById("reset-zoom")
+    zoomOut: document.getElementById("zoom-out")
   };
 
   const nodeWidth = 204;
   const nodeHeight = 48;
-  const columnStep = 266;
   const rowStep = 58;
   const padding = 26;
-  const minZoom = .05;
+  const canvasInset = 64;
+  const minZoom = .2;
   const maxZoom = 1.5;
   const entries = new Map();
   const buttons = new Map();
-  const compact = matchMedia("(max-width: 940px)");
+  const compact = matchMedia("(max-width: 670px)");
   const theme = matchMedia("(prefers-color-scheme: dark)");
   let expanded = new Set(["root", "mcause"]);
   let filterExpanded = new Set();
   let hits = null;
   let visible = null;
   let active = "root";
+  let detailOpen = false;
   let selectionBeforeFilter = "root";
   let points = new Map();
   let layoutWidth = 0;
   let layoutHeight = 0;
   let zoom = 1;
+  let columnStep;
   let paintFrame;
   let drag;
 
@@ -185,30 +182,6 @@
     layoutHeight = nextRow - rowStep + nodeHeight / 2 + padding;
   }
 
-  function pathEntry(entry, current) {
-    const label = shortLabels[entry.id] || entry.node.label;
-    if (current) {
-      const text = element("span", { textContent: label });
-      text.setAttribute("aria-current", "location");
-      return text;
-    }
-    const button = element("button", { type: "button", textContent: label });
-    button.addEventListener("click", () => navigate(entry.id, { focus: true }));
-    return button;
-  }
-
-  function renderPath() {
-    const trail = ancestors(entries.get(active));
-    const parts = trail.flatMap((entry, index) => {
-      const part = pathEntry(entry, index === trail.length - 1);
-      if (!index) return [part];
-      const separator = element("span", { textContent: "›" });
-      separator.setAttribute("aria-hidden", "true");
-      return [separator, part];
-    });
-    ui.path.replaceChildren(...parts);
-  }
-
   function nodeElement(point) {
     const { entry, expandable, children, x, y } = point;
     const { node, id } = entry;
@@ -226,8 +199,9 @@
     const meta = node.sub || node.codes?.join(" / ");
     if (meta) select.append(element("span", { className: "node-meta", textContent: meta }));
     select.addEventListener("click", () => {
+      detailOpen = true;
       selectNode(id);
-      if (compact.matches && !expandable) ui.panel.focus();
+      if (compact.matches) ui.panel.focus({ preventScroll: true });
     });
     select.addEventListener("keydown", event => moveByKey(event, point));
     card.append(select);
@@ -273,8 +247,7 @@
     ui.map.style.height = Math.max(0, layoutHeight) + "px";
     ui.map.style.transform = `scale(${zoom})`;
     ui.world.style.width = Math.ceil(layoutWidth * zoom) + "px";
-    ui.world.style.height = Math.ceil(Math.max(0, layoutHeight) * zoom) + "px";
-    ui.zoomLevel.textContent = Math.round(zoom * 100) + "%";
+    ui.world.style.height = Math.ceil(Math.max(0, layoutHeight) * zoom + 2 * canvasInset) + "px";
     const empty = points.size === 0;
     ui.zoomOut.disabled = empty || zoom <= minZoom;
     ui.zoomIn.disabled = empty || zoom >= maxZoom;
@@ -293,10 +266,7 @@
     ui.viewport.hidden = empty;
     ui.expand.disabled = empty;
     ui.collapse.disabled = empty;
-    ui.fit.disabled = empty;
-    ui.resetZoom.disabled = empty;
-    ui.jump.hidden = empty;
-    ui.count.textContent = hits ? `匹配 ${hits.size} 项` : `${points.size} / ${entries.size} 节点`;
+    ui.count.textContent = hits ? `匹配 ${hits.size} 项` : "";
     sizeWorld();
     const next = points.get(anchorId);
     if (next && previousY !== undefined) ui.viewport.scrollTop = previousScroll + (next.y - previousY) * zoom;
@@ -318,7 +288,7 @@
     const context = ui.canvas.getContext("2d");
     if (!context) return;
     context.setTransform(ratio * zoom, 0, 0, ratio * zoom,
-      (ui.world.offsetLeft - ui.viewport.scrollLeft) * ratio, -ui.viewport.scrollTop * ratio);
+      (ui.world.offsetLeft - ui.viewport.scrollLeft) * ratio, (canvasInset - ui.viewport.scrollTop) * ratio);
     const style = getComputedStyle(ui.stage);
     const neutral = style.getPropertyValue("--wire").trim();
     const tones = Object.fromEntries(["encoding", "memory", "execution", "platform"].map(tone =>
@@ -381,15 +351,20 @@
   }
 
   function renderDetail() {
+    ui.panel.hidden = !detailOpen || !points.has(active);
+    if (ui.panel.hidden) return;
     const entry = entries.get(active);
     const { node } = entry;
     const toolbar = element("div", { className: "detail-toolbar" });
-    const back = element("button", { type: "button", className: "detail-back", textContent: "回到图中" });
-    back.addEventListener("click", () => focusNode(active));
-    toolbar.append(element("p", { className: "panel-label", textContent: "节点详情" }), back);
+    const close = element("button", { type: "button", className: "detail-close", textContent: "关闭" });
+    close.addEventListener("click", closeDetail);
     const heading = element("h2", { id: "detail-title", textContent: node.label });
-    ui.panel.replaceChildren(toolbar, heading);
-    ui.panel.hidden = hits?.size === 0;
+    toolbar.append(heading, close);
+    ui.panel.replaceChildren(toolbar);
+    if (entry.parent && entry.parent.id !== "root") {
+      const trail = ancestors(entry.parent).slice(1).map(item => shortLabels[item.id] || item.node.label);
+      ui.panel.append(element("p", { className: "detail-path", textContent: trail.join(" / ") }));
+    }
     const tags = element("div", { className: "tags" });
     for (const tag of [node.status, node.profile].filter(Boolean)) {
       tags.append(element("span", { className: "tag " + tag, textContent: labels[tag] }));
@@ -405,6 +380,20 @@
     const citations = new Set(cited?.node.sources || ["machine", "profile"]);
     if (node.profile) citations.add("profile");
     detailList("规范来源", [...citations].map(source => sources[source]));
+    positionDetail();
+  }
+
+  function positionDetail() {
+    const card = buttons.get(active)?.card;
+    if (!card || ui.panel.hidden) return;
+    const { left, width } = card.getBoundingClientRect();
+    ui.panel.dataset.side = left + width / 2 > ui.stage.clientWidth / 2 ? "left" : "right";
+  }
+
+  function closeDetail() {
+    detailOpen = false;
+    ui.panel.hidden = true;
+    focusNode(active);
   }
 
   function updateSelection() {
@@ -414,7 +403,6 @@
       card.classList.toggle("is-selected", id === active);
     }
     renderDetail();
-    renderPath();
     schedulePaint();
   }
 
@@ -435,8 +423,8 @@
     const margin = 10;
     const left = point.x * zoom - margin;
     const right = (point.x + nodeWidth) * zoom + margin;
-    const top = (point.y - nodeHeight / 2) * zoom - margin;
-    const bottom = (point.y + nodeHeight / 2) * zoom + margin;
+    const top = (point.y - nodeHeight / 2) * zoom + canvasInset - margin;
+    const bottom = (point.y + nodeHeight / 2) * zoom + canvasInset + margin;
     const viewport = ui.viewport;
     if (left < viewport.scrollLeft) viewport.scrollLeft = left;
     else if (right > viewport.scrollLeft + viewport.clientWidth) viewport.scrollLeft = right - viewport.clientWidth;
@@ -452,6 +440,14 @@
     if (!points.has(active)) active = id;
     updateSelection();
     focusNode(id, control);
+    const child = points.get(id)?.children[0];
+    if (child) {
+      const right = ui.world.offsetLeft + (child.x + nodeWidth) * zoom + 12;
+      const viewport = ui.viewport;
+      if (right > viewport.scrollLeft + viewport.clientWidth) {
+        viewport.scrollLeft = right - viewport.clientWidth;
+      }
+    }
   }
 
   function applyFilters({ restore = true } = {}) {
@@ -489,7 +485,7 @@
     if (!point) return;
     const viewport = ui.viewport;
     viewport.scrollLeft = Math.max(0, (point.x + nodeWidth / 2) * zoom - viewport.clientWidth * .56);
-    viewport.scrollTop = Math.max(0, point.y * zoom - viewport.clientHeight * .48);
+    viewport.scrollTop = Math.max(0, point.y * zoom + canvasInset - viewport.clientHeight * .48);
   }
 
   function navigate(id, { focus = false, push = true, open = false } = {}) {
@@ -502,10 +498,12 @@
     ancestors(entry).slice(0, -1).forEach(parent => openBranches().add(parent.id));
     if (open && availableChildren(entry).length) openBranches().add(id);
     renderTree();
+    detailOpen = id !== "root";
     selectNode(id, push);
     if (focus) {
-      ui.viewport.scrollIntoView({ block: "nearest" });
+      revealNode(id);
       focusNode(id);
+      positionDetail();
     }
   }
 
@@ -513,17 +511,11 @@
     const previous = zoom;
     const viewport = ui.viewport;
     const worldX = (viewport.scrollLeft + x - ui.world.offsetLeft) / previous;
-    const worldY = (viewport.scrollTop + y) / previous;
+    const worldY = (viewport.scrollTop + y - canvasInset) / previous;
     zoom = Math.max(minZoom, Math.min(maxZoom, next));
     sizeWorld();
     viewport.scrollLeft = worldX * zoom + ui.world.offsetLeft - x;
-    viewport.scrollTop = worldY * zoom - y;
-  }
-
-  function fitTree() {
-    setZoom(Math.min(ui.viewport.clientWidth / layoutWidth, ui.viewport.clientHeight / layoutHeight, 1), 0, 0);
-    ui.viewport.scrollLeft = 0;
-    ui.viewport.scrollTop = 0;
+    viewport.scrollTop = worldY * zoom + canvasInset - y;
   }
 
   function bulkExpand(all) {
@@ -552,6 +544,7 @@
   indexNode(data);
   ui.map.style.setProperty("--node-width", nodeWidth + "px");
   ui.map.style.setProperty("--node-height", nodeHeight + "px");
+  ui.map.style.top = canvasInset + "px";
   ui.form.addEventListener("submit", event => event.preventDefault());
   ui.query.addEventListener("input", () => applyFilters());
   ui.status.addEventListener("change", () => applyFilters());
@@ -565,19 +558,10 @@
     applyFilters();
     ui.query.focus();
   });
-  ui.jump.addEventListener("click", event => {
-    event.preventDefault();
-    ui.panel.focus();
-  });
   ui.expand.addEventListener("click", () => bulkExpand(true));
   ui.collapse.addEventListener("click", () => bulkExpand(false));
   ui.zoomIn.addEventListener("click", () => setZoom(zoom * 1.18));
   ui.zoomOut.addEventListener("click", () => setZoom(zoom / 1.18));
-  ui.fit.addEventListener("click", fitTree);
-  ui.resetZoom.addEventListener("click", () => {
-    setZoom(1);
-    revealNode(active);
-  });
   ui.viewport.addEventListener("scroll", schedulePaint, { passive: true });
   ui.viewport.addEventListener("wheel", event => {
     if (!event.ctrlKey && !event.metaKey) return;
@@ -604,6 +588,7 @@
   });
 
   document.addEventListener("click", event => {
+    if (!ui.form.contains(event.target)) ui.filterToggle.setAttribute("aria-expanded", "false");
     const anchor = event.target.closest('a[href^="#"]');
     if (!anchor || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     const id = decodeURIComponent(anchor.hash.slice(1));
@@ -611,12 +596,30 @@
     event.preventDefault();
     navigate(id, { focus: true, open: true });
   });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    if (ui.filterToggle.getAttribute("aria-expanded") === "true") {
+      ui.filterToggle.setAttribute("aria-expanded", "false");
+      ui.filterToggle.focus();
+    } else if (!ui.panel.hidden) closeDetail();
+  });
   window.addEventListener("hashchange", () => navigate(hashId(), { push: false, focus: true }));
-  new ResizeObserver(schedulePaint).observe(ui.stage);
   theme.addEventListener("change", schedulePaint);
   ui.explorer.hidden = false;
-  zoom = Math.min(.94, Math.max(.71, ui.viewport.clientWidth / (columnStep + nodeWidth + padding * 2)));
+  const columnSpacing = () => Math.max(254, Math.min(560, Math.round((ui.stage.clientWidth - 350) / 2)));
+  columnStep = columnSpacing();
+  zoom = Math.min(1, ui.viewport.clientWidth / (columnStep + nodeWidth + padding * 2));
   const initial = hashId();
-  navigate(entries.has(initial) ? initial : "root", { push: false, focus: initial !== "root" && entries.has(initial) });
+  const direct = initial !== "root" && entries.has(initial);
+  navigate(direct ? initial : "root", { push: false, focus: direct });
   if (initial === "root" && compact.matches) revealNode("root");
+  new ResizeObserver(() => {
+    const step = columnSpacing();
+    if (step !== columnStep) {
+      columnStep = step;
+      renderTree(active);
+      updateSelection();
+      revealNode(active);
+    } else schedulePaint();
+  }).observe(ui.stage);
 })();

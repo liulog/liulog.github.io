@@ -6,113 +6,59 @@
   <meta name="description" content="从 RISC-V 异常编码定位权限检查环节，查阅 PMP、页表、两阶段翻译、RVA23S64 与相关扩展。">
   <meta name="theme-color" content="#102a2a">
   <title>RISC-V 陷阱与访问控制 · liu.log</title>
-  <link rel="stylesheet" href="./assets/riscv-trap.css?v=9175636">
-  <script src="./assets/riscv-trap.js?v=9175636" defer></script>
+  <link rel="stylesheet" href="./assets/riscv-trap.css?v=canvas-1">
+  <script src="./assets/riscv-trap.js?v=canvas-1" defer></script>
 </head>
 <body>
-  <a class="skip" href="#main">跳到正文</a>
-  <header class="top">
-    <nav class="frame site-nav" aria-label="站点导航">
-      <a class="brand" href="./">liu.log</a>
-      <a href="./#library">全部文章</a>
-      <a href="./riscv-ext.html">阅读指南</a>
-    </nav>
-  </header>
+  <a class="skip" href="#tree-viewport">跳到交互树</a>
   <main id="main">
-    <header class="intro">
-      <div class="frame intro-content">
-        <div>
-          <h1>RISC-V 陷阱与访问控制</h1>
-          <p>从 <code>mcause</code>、<code>scause</code> 或 <code>vscause</code> 出发，追踪一次访问在哪个环节被拦截。</p>
+    <noscript><p>交互树需要 JavaScript。也可查阅<a href="./riscv-ext.html">阅读指南与异常对照表</a>。</p></noscript>
+    <div id="explorer" hidden>
+      <form id="filters" class="toolbar" role="search" aria-label="搜索异常与机制">
+        <h1>RISC-V 陷阱树</h1>
+        <input id="query" type="search" aria-label="搜索关键词或异常编码" placeholder="搜索 PMP、cause 13" autocomplete="off">
+        <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-controls">筛选</button>
+        <a class="guide-link" href="./riscv-ext.html">阅读指南</a>
+        <div id="filter-controls" class="filter-controls">
+          <label>规范状态
+            <select id="status-filter">
+              <option value="">全部状态</option>
+              <option value="standard">已批准规范</option>
+              <option value="draft">公开提案</option>
+              <option value="platform">平台或实现相关</option>
+            </select>
+          </label>
+          <label>Profile 要求
+            <select id="profile-filter">
+              <option value="">全部要求</option>
+              <option value="mandatory">RVA23S64 强制</option>
+              <option value="optional">RVA23S64 可选</option>
+              <option value="u64-option">RVA23U64 可选</option>
+              <option value="not-in-profile">RVA23S64 未列入</option>
+            </select>
+          </label>
+          <button id="clear" type="button">清除筛选</button>
         </div>
-        <nav class="intro-links" aria-label="常见访存故障">
-          <a class="quick-link" href="#af"><span>访问故障</span><code>1 / 5 / 7</code></a>
-          <a class="quick-link" href="#pf"><span>页故障</span><code>12 / 13 / 15</code></a>
-          <a class="quick-link" href="#gpf"><span>客户页故障</span><code>20 / 21 / 23</code></a>
-        </nav>
-      </div>
-    </header>
-    <div class="frame content">
-      <section aria-label="陷阱关系图">
-        <noscript><p>交互树需要 JavaScript。也可查阅<a href="./riscv-ext.html">阅读指南与异常对照表</a>。</p></noscript>
-        <div id="explorer" hidden>
-          <form id="filters" class="filters" role="search" aria-label="搜索异常与机制">
-            <label class="search">搜索关键词或编码
-              <input id="query" type="search" placeholder="如 PMP、cause 13、tval=2" autocomplete="off">
-            </label>
-            <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-controls">筛选</button>
-            <div id="filter-controls" class="filter-controls">
-              <label>规范状态
-                <select id="status-filter">
-                  <option value="">全部状态</option>
-                  <option value="standard">已批准规范</option>
-                  <option value="draft">公开提案</option>
-                  <option value="platform">平台或实现相关</option>
-                </select>
-              </label>
-              <label>Profile 要求
-                <select id="profile-filter">
-                  <option value="">全部要求</option>
-                  <option value="mandatory">RVA23S64 强制</option>
-                  <option value="optional">RVA23S64 可选</option>
-                  <option value="u64-option">RVA23U64 可选</option>
-                  <option value="not-in-profile">RVA23S64 未列入</option>
-                </select>
-              </label>
-              <button id="clear" type="button">清除筛选</button>
-            </div>
-          </form>
-          <div class="explorer-grid">
-            <div class="map">
-              <header class="map-toolbar">
-                <h2 id="explorer-title">陷阱分支树</h2>
-                <p id="result-count" role="status"></p>
-                <div class="tree-actions" role="group" aria-label="分支操作">
-                  <button id="expand-all" type="button">全部展开</button>
-                  <button id="collapse-all" type="button">收起分支</button>
-                </div>
-              </header>
-              <div class="map-controls">
-                <nav id="map-path" class="map-path" aria-label="图中位置"></nav>
-                <div class="canvas-tools">
-                  <div class="tree-actions" role="group" aria-label="画布缩放">
-                    <button id="zoom-out" type="button" aria-label="缩小">−</button>
-                    <button id="reset-zoom" type="button" title="恢复实际大小" aria-label="恢复实际大小"><span id="zoom-level">100%</span></button>
-                    <button id="zoom-in" type="button" aria-label="放大">+</button>
-                    <button id="fit-tree" type="button">适应窗口</button>
-                  </div>
-                  <a class="detail-jump" href="#detail">查看详情</a>
-                </div>
-              </div>
-              <div id="map-stage" class="map-stage">
-                <canvas id="map-wires" class="map-wires" aria-hidden="true"></canvas>
-                <div id="tree-viewport" class="tree-viewport" role="region" aria-label="可滚动的陷阱树画布" tabindex="0">
-                  <div id="tree-world" class="tree-world">
-                    <div id="map-content" class="map-content"></div>
-                  </div>
-                </div>
-                <p id="empty" class="empty" hidden>没有匹配项。可以试试扩展名、CSR 名或异常编号。</p>
-              </div>
-              <footer class="map-footer">
-                <p>点击节点查看详情，用 + / − 展开或收起分支。可以拖动画布。</p>
-              </footer>
-            </div>
-            <section id="detail" class="detail" aria-labelledby="detail-title" tabindex="-1"></section>
+      </form>
+
+      <div id="map-stage" class="map-stage">
+        <canvas id="map-wires" class="map-wires" aria-hidden="true"></canvas>
+        <div id="tree-viewport" class="tree-viewport" role="region" aria-label="可拖动和滚动的陷阱树画布" tabindex="0">
+          <div id="tree-world" class="tree-world">
+            <div id="map-content" class="map-content"></div>
           </div>
         </div>
-      </section>
+        <p id="empty" class="empty" hidden>没有匹配项。可以试试扩展名、CSR 名或异常编号。</p>
+      </div>
 
-      <footer id="sources" class="refs">
-        <h2>规范来源</h2>
-        <ul>
-          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/machine.html">Machine ISA · 异常编码、PMP、PMA</a></li>
-          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/supervisor.html">Supervisor ISA · 页表与翻译</a></li>
-          <li><a href="https://docs.riscv.org/reference/isa/v20260120/priv/hypervisor.html">H 扩展 · 两阶段翻译与委托</a></li>
-          <li><a href="https://docs.riscv.org/reference/rva23/v1.0/rva23-profiles.html">RVA23 Profiles · 强制与可选扩展</a></li>
-          <li><a href="https://riscv.github.io/adm-spec-dashboard/">RISC-V Specification Dashboard · 扩展进度</a></li>
-          <li><a href="./riscv-ext.html">阅读指南 · 异常对照与排查示例</a></li>
-        </ul>
-      </footer>
+      <div class="tree-controls" role="group" aria-label="树与画布操作">
+        <button id="expand-all" type="button">全部展开</button>
+        <button id="collapse-all" type="button">收起分支</button>
+        <button id="zoom-out" class="zoom-control" type="button" aria-label="缩小画布">−</button>
+        <button id="zoom-in" class="zoom-control" type="button" aria-label="放大画布">+</button>
+      </div>
+      <p id="result-count" class="result-count" role="status"></p>
+      <aside id="detail" class="detail" aria-labelledby="detail-title" tabindex="-1" hidden></aside>
     </div>
   </main>
   <script id="tree-data" type="application/json">
