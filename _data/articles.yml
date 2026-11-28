@@ -1,3 +1,9 @@
+- title: NVIDIA CUDA 软件栈与 GPU 内存管理
+  url: /cuda-driver-stack.html
+  category: architecture
+  label: 计算机体系结构
+  format: 论文背景解读
+  description: 以 GHost in the Shell 为起点，用示意图读懂 PyTorch、Triton、CUDA 软件栈和 HMM 内存路径。
 - title: RISC-V 陷阱与访问控制
   url: /riscv-ext.html
   category: architecture

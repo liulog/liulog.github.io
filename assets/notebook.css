@@ -108,6 +108,156 @@ a, button, input, summary { -webkit-tap-highlight-color: transparent; }
 .riscv-trap-guide table { font-size: .94rem; }
 .riscv-trap-guide th, .riscv-trap-guide td { min-width: 0; }
 .riscv-trap-guide #memory + table :is(th, td):nth-child(n+2):nth-child(-n+4) { white-space: nowrap; }
+.cuda-guide { width: 100%; min-width: 0; }
+.cuda-diagram {
+  --diagram-border: #cbd9d2;
+  --diagram-wire: #517d70;
+  --diagram-ink: #183d33;
+  --diagram-muted: #435f56;
+  container-type: inline-size;
+  margin: 1.5rem 0 1.75rem;
+  padding: clamp(.7rem, 2.6vw, 1.3rem);
+  border: 1px solid var(--diagram-border);
+  border-radius: 13px;
+  background: #f6faf7;
+  color: var(--diagram-ink);
+}
+.cuda-diagram figcaption { margin: 0 0 .85rem; color: var(--diagram-ink); font-size: 1rem; font-weight: 700; }
+.cuda-diagram :is(.cuda-plane, .cuda-sequence, .cuda-memory, .cuda-plane-body, .cuda-branch) { min-width: 0; }
+.cuda-diagram .cuda-node {
+  position: relative;
+  min-width: 0;
+  padding: .55rem .7rem;
+  border: 1px solid var(--diagram-border);
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  line-height: 1.45;
+}
+.cuda-node strong { display: block; color: var(--diagram-ink); font-size: .96rem; }
+.cuda-node small { display: block; margin-top: .15rem; color: var(--diagram-muted); font-size: .84rem; }
+.cuda-diagram code { padding: .04em .24em; background: #edf4ef; color: #1c5848; }
+.cuda-diagram .cuda-node--accent { border-color: #92b9a8; background: #e7f4ec; }
+.cuda-diagram .cuda-node--dashed { border-style: dashed; border-color: #8ca9a2; }
+.cuda-node--wide { width: min(100%, 24rem); justify-self: center; }
+
+.cuda-stack { --plane-label: 6.7rem; --plane-gap: .7rem; }
+.cuda-plane {
+  display: grid;
+  grid-template-columns: var(--plane-label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--plane-gap);
+  padding: .7rem;
+  border-radius: 10px;
+}
+.cuda-diagram :is(.cuda-plane, .cuda-memory-route) h3 { margin: 0; color: var(--diagram-ink); font: 700 .94rem/1.4 var(--font-sans); }
+.cuda-plane--user { background: #e9f2ef; }
+.cuda-plane--kernel { background: #e7eff5; }
+.cuda-plane--device { background: #f2eee3; }
+.cuda-plane-body { display: grid; justify-items: center; }
+.cuda-split { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 30rem); margin: .9rem 0; }
+.cuda-split::before, .cuda-split::after {
+  content: "";
+  position: absolute;
+  left: 25%;
+  width: 50%;
+  border-top: 1px solid var(--diagram-wire);
+}
+.cuda-split::before { top: -.47rem; }
+.cuda-split::after { bottom: -.47rem; }
+.cuda-branch { display: grid; position: relative; padding: 0 .28rem; }
+.cuda-branch::before, .cuda-branch::after, .cuda-plane-body > .cuda-node:first-child::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  height: .49rem;
+  background: var(--diagram-wire);
+}
+.cuda-branch::before { bottom: 100%; }
+.cuda-branch::after, .cuda-plane-body > .cuda-node:first-child::after { top: 100%; }
+.cuda-down, .cuda-plane-body > .cuda-node:last-child::before {
+  width: .65rem;
+  background: var(--diagram-wire);
+  clip-path: polygon(44% 0, 56% 0, 56% 65%, 100% 65%, 50% 100%, 0 65%, 44% 65%);
+}
+.cuda-down {
+  display: block;
+  height: 1.1rem;
+  margin-inline-start: calc(50% + (var(--plane-label) + var(--plane-gap)) / 2 - .325rem);
+}
+.cuda-diagram .cuda-down--center { margin-inline: auto; }
+.cuda-plane-body > .cuda-node:last-child::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: calc(50% - .325rem);
+  height: .48rem;
+}
+
+.cuda-ecosystem-root { margin-inline: auto; }
+.cuda-ecosystem-routes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .5rem;
+  padding: .55rem;
+  border: 1px solid var(--diagram-border);
+  border-radius: 10px;
+  background: #edf4f0;
+}
+.cuda-ecosystem-route {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: .4rem;
+  min-width: 0;
+  padding: .5rem;
+  border-top: 3px solid var(--route-line);
+  border-radius: 7px;
+  background: #fff;
+  text-align: center;
+}
+.cuda-ecosystem-route--native { --route-line: #487e6a; }
+.cuda-ecosystem-route--library { --route-line: #587da5; }
+.cuda-ecosystem-route--compiler { --route-line: #86669d; }
+.cuda-ecosystem-route--communication { --route-line: #a37946; }
+.cuda-diagram .cuda-ecosystem-route h3 { margin: 0; color: var(--diagram-ink); font: 700 .9rem/1.4 var(--font-sans); }
+.cuda-diagram .cuda-ecosystem-route p { margin: 0; color: var(--diagram-muted); font-size: .84rem; line-height: 1.4; }
+.cuda-ecosystem-route .cuda-node { display: grid; min-height: 4.6rem; align-content: center; padding-inline: .25rem; }
+
+.cuda-sequence { display: grid; grid-template-columns: minmax(0, 1fr) 1.45rem minmax(0, 1fr); gap: .45rem .2rem; }
+.cuda-lane { padding: .42rem .5rem; border-radius: 7px; text-align: center; font-size: .88rem; font-weight: 700; }
+.cuda-lane--host { background: #e0f0e7; }
+.cuda-lane--device { background: #e3edf5; }
+.cuda-diagram .cuda-across { align-self: center; text-align: center; color: var(--diagram-wire); font-size: 1.12rem; font-weight: 700; }
+
+.cuda-memory { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
+.cuda-memory-route {
+  display: grid;
+  grid-template-rows: auto minmax(3.65rem, auto) auto minmax(3.65rem, auto) 1fr;
+  gap: .4rem;
+  padding: .65rem;
+  border: 1px solid var(--diagram-border);
+  border-radius: 9px;
+  background: var(--route-background);
+}
+.cuda-memory-route--copy { --route-background: #e8f0f7; }
+.cuda-memory-route--managed { --route-background: #e4f1e8; }
+.cuda-memory-route--hmm { --route-background: #f3eee0; }
+.cuda-diagram .cuda-memory-route h3 { text-align: center; }
+.cuda-memory-route .cuda-node { display: grid; align-content: center; }
+.cuda-memory-flow { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .15rem .35rem; color: var(--diagram-muted); text-align: center; font-size: .84rem; }
+.cuda-memory-flow span { color: var(--diagram-wire); font-size: 1.15rem; font-weight: 700; }
+.cuda-diagram .cuda-memory-route p { margin: .1rem 0 0; color: var(--diagram-muted); font-size: .84rem; line-height: 1.5; }
+@container (max-width: 41rem) {
+  .cuda-ecosystem-routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cuda-memory { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 29rem) {
+  .cuda-plane { grid-template-columns: minmax(0, 1fr); gap: .45rem; }
+  .cuda-down { margin-inline-start: calc(50% - .325rem); }
+  .cuda-diagram .cuda-node { padding-inline: .4rem; }
+  .cuda-sequence { grid-template-columns: minmax(0, 1fr) 1.05rem minmax(0, 1fr); column-gap: .15rem; }
+}
 .fpga-article h2 { font-size: 1.5rem; line-height: 1.6; margin-top: 3.5rem; padding-bottom: .8rem; }
 .fpga-article h3 { font-family: var(--font-sans); font-size: 1.1rem; line-height: 1.7; }
 .fpga-article a:not(.button-primary) { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #b1c7a7; }
