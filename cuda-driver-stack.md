@@ -5,6 +5,7 @@ description: 从 GHost in the Shell 的背景出发，梳理 PyTorch、Triton、
 article: true
 toc: true
 page_class: cuda-guide
+notebook_css_version: cuda-diagrams-1
 sections:
   - { id: stack, title: "CUDA 软件栈的五层" }
   - { id: ecosystem, title: "PyTorch 怎样接到 CUDA" }
@@ -18,6 +19,12 @@ sections:
 <header class="guide-hero">
   <h1>NVIDIA CUDA 软件栈与 GPU 内存管理</h1>
   <p>从 CPU 上的一次 CUDA 调用出发，追踪请求如何经过 <code>libcudart</code>、<code>libcuda</code> 和 Linux 内核驱动，最终由 GPU 执行。再用这条路径理解 HMM 改变了什么。</p>
+  <nav class="cuda-figure-links" aria-label="文中示意图">
+    <a href="#cuda-stack-caption">CUDA 分层图</a>
+    <a href="#cuda-ecosystem-caption">PyTorch 执行图</a>
+    <a href="#cuda-launch-caption">Kernel launch 流程图</a>
+    <a href="#cuda-memory-caption">内存路径图</a>
+  </nav>
 </header>
 
 *GHost in the Shell* 的 §2 按主机程序、CUDA Runtime、GPU 驱动和 GPU kernel 来介绍软件栈。其中的 `libcuda-rt` 指 CUDA Runtime，实际库名通常写作 `libcudart`。把论文合称的 GPU driver 再拆成用户态的 `libcuda` 和内核态驱动，就能看清 API 边界、操作系统权限边界和设备执行边界。 [论文 §2.1](https://leeyoochan.github.io/assets/pdf/ghost_SP_2026.pdf#page=1) · [NVIDIA CUDA 平台](https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/cuda-platform.html)

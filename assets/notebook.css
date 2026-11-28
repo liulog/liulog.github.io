@@ -109,6 +109,16 @@ a, button, input, summary { -webkit-tap-highlight-color: transparent; }
 .riscv-trap-guide th, .riscv-trap-guide td { min-width: 0; }
 .riscv-trap-guide #memory + table :is(th, td):nth-child(n+2):nth-child(-n+4) { white-space: nowrap; }
 .cuda-guide { width: 100%; min-width: 0; }
+.cuda-figure-links { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem; }
+.cuda-figure-links a {
+  padding: .28rem .58rem;
+  border: 1px solid #a5bdad;
+  border-radius: 6px;
+  background: #f7faf6;
+  color: #195642;
+  font-size: .875rem;
+  text-underline-offset: .18em;
+}
 .cuda-diagram {
   --diagram-border: #cbd9d2;
   --diagram-wire: #517d70;
@@ -122,7 +132,7 @@ a, button, input, summary { -webkit-tap-highlight-color: transparent; }
   background: #f6faf7;
   color: var(--diagram-ink);
 }
-.cuda-diagram figcaption { margin: 0 0 .85rem; color: var(--diagram-ink); font-size: 1rem; font-weight: 700; }
+.cuda-diagram figcaption { margin: 0 0 .85rem; color: var(--diagram-ink); font-size: 1rem; font-weight: 700; scroll-margin-top: 6rem; }
 .cuda-diagram :is(.cuda-plane, .cuda-sequence, .cuda-memory, .cuda-plane-body, .cuda-branch) { min-width: 0; }
 .cuda-diagram .cuda-node {
   position: relative;
